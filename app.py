@@ -9,6 +9,7 @@ import tempfile
 import json
 import hashlib
 import re
+import time
 
 load_dotenv()
 
@@ -22,51 +23,45 @@ cache = {}
 def extract_info(pdf_path):
     try:
         with pdfplumber.open(pdf_path) as pdf:
-            if not pdf.pages:  # Vérification PDF vide
+            if not pdf.pages:
                 print("Erreur: PDF vide")
                 return None
 
             info = {}
             for i, page in enumerate(pdf.pages):
-                if i < 4:  # Ignorer les 4 premières pages
+                if i < 4:
                     continue
 
                 text = page.extract_text()
                 if text:
-                    # Type de bien
-                    match = re.search(r"Type de bien\s*:\s*(.*)", text)  # Expression régulière plus robuste
+                    match = re.search(r"Type de bien\s*:\s*(.*)", text)
                     if match:
                         info["type_de_bien"] = match.group(1).strip()
-                    
-                    # Superficie
+
                     match = re.search(r"superficie habitable de\s*(\d+)\s*m²", text, re.IGNORECASE)
                     if match:
                         info["superficie"] = int(match.group(1))
-                    
-                    # Localisation (plusieurs options)
+
                     match = re.search(r"(centre-ville|Promenade des Anglais)", text, re.IGNORECASE)
                     if match:
                         info["localisation"] = match.group(1).strip()
-                    elif "centre-ville" in text.lower() or "Promenade des Anglais" in text.lower(): # Fallback
+                    elif "centre-ville" in text.lower() or "Promenade des Anglais" in text.lower():
                         if "centre-ville" in text.lower():
                             info["localisation"] = "centre-ville"
                         else:
                             info["localisation"] = "Promenade des Anglais"
 
-                    # Budget (plusieurs options)
                     match = re.search(r"budget idéal de\s*([\d\s]+)\s*EUR", text, re.IGNORECASE)
                     if match:
-                        budget_str = match.group(1).replace(" ", "")  # Supprimer les espaces
+                        budget_str = match.group(1).replace(" ", "")
                         try:
                             info["budget"] = int(budget_str)
                         except ValueError:
                             print("Erreur: Budget non trouvé ou mal formaté")
 
-                    # ... extraire d'autres infos (si nécessaire)
-
             return info
 
-    except Exception as e:  # Capture les autres erreurs (fichier non trouvé, etc.)
+    except Exception as e:
         print(f"Erreur générale lors de l'extraction PDF: {e}")
         return None
 
@@ -106,10 +101,14 @@ def scrape_leboncoin(criteria, limit=5):
         "price_min": criteria.get("budget_min", ""),
         "price_max": criteria.get("budget_max", ""),
     }
-    headers = {"User-Agent": "Mozilla/5.0"}
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+    }
+
     try:
         response = requests.get(url, params=params, headers=headers)
-        response.raise_for_status()
+        response.raise_for_status()  # Important pour détecter les erreurs HTTP (403, etc.)
+
         soup = BeautifulSoup(response.text, "html.parser")
         results = []
         for i, ad in enumerate(soup.find_all("div", class_="aditem-container")):
@@ -123,11 +122,18 @@ def scrape_leboncoin(criteria, limit=5):
         if not results:
             return [{"error": "Aucune annonce trouvée"}]
 
+        time.sleep(2)  # Délai entre les requêtes
         return results
+
     except requests.exceptions.RequestException as e:
-        return [{"error": str(e)}]
+        print(f"Erreur scraping: {e}")
+        return [{"error": str(e)}]  # Retourne l'erreur pour l'afficher dans l'application
     except AttributeError as e:
         return [{"error": "Éléments non trouvés sur la page (Leboncoin a peut-être changé son code): " + str(e)}]
+    except Exception as e:
+        print(f"Erreur scraping générale: {e}")
+        return [{"error": "Erreur inconnue lors du scraping"}]
+
 
 @app.route('/upload_pdf', methods=['POST'])
 def upload_pdf():
