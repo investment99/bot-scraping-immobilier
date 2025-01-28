@@ -33,7 +33,7 @@ def analyze_report(text):
     )
     return response.choices[0].message.content.strip()
 
-def scrape_leboncoin(criteria):
+def scrape_leboncoin(criteria, limit=5):
     url = "https://www.leboncoin.fr/recherche"
     params = {
         "category": "ventes_immobilieres",
@@ -47,15 +47,21 @@ def scrape_leboncoin(criteria):
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
         results = []
-        for ad in soup.find_all("div", class_="aditem-container"):  # Adaptez la classe si nécessaire
-            title = ad.find("a", class_="aditem-title").text.strip()  # Adaptez la classe si nécessaire
-            price = ad.find("span", class_="item-price").text.strip()  # Adaptez la classe si nécessaire
-            link = ad.find("a")["href"]  # Adaptez la classe si nécessaire
+        for i, ad in enumerate(soup.find_all("div", class_="aditem-container")):
+            if i >= limit:
+                break
+            title = ad.find("a", class_="aditem-title").text.strip()
+            price = ad.find("span", class_="item-price").text.strip()
+            link = ad.find("a")["href"]
             results.append({"title": title, "price": price, "link": link})
+
+        if not results:
+            return [{"error": "Aucune annonce trouvée"}]
+
         return results
-    except requests.exceptions.RequestException as e: # Gestion plus précise des erreurs
+    except requests.exceptions.RequestException as e:
         return [{"error": str(e)}]
-    except AttributeError as e: # Gestion du cas où les éléments ne sont pas trouvés
+    except AttributeError as e:
         return [{"error": "Éléments non trouvés sur la page (Leboncoin a peut-être changé son code): " + str(e)}]
 
 
@@ -83,7 +89,7 @@ def upload_pdf():
             print(f"Erreur lors du décodage JSON des critères : {e}")
             return jsonify({"error": "Failed to decode JSON criteria from OpenAI response: " + str(e)}), 500
 
-        results = scrape_leboncoin(criteria)
+        results = scrape_leboncoin(criteria, limit=5)
 
         return jsonify({"criteria": criteria, "results": results}), 200
 
