@@ -57,35 +57,48 @@ def scrape_leboncoin(criteria):
     except Exception as e:
         return [{"error": str(e)}]
 
-@app.route('/upload_pdf', methods=['POST'])
+@@app.route('/upload_pdf', methods=['POST'])
 def upload_pdf():
-    """Endpoint pour traiter un fichier PDF."""
+    print("Requête POST reçue sur /upload_pdf")
     if 'file' not in request.files:
+        print("Aucun fichier reçu")
         return jsonify({"error": "No file provided"}), 400
 
     file = request.files['file']
     if not file.filename.endswith('.pdf'):
+        print("Type de fichier invalide")
         return jsonify({"error": "Invalid file type"}), 400
 
     file_path = os.path.join("uploads", file.filename)
     os.makedirs("uploads", exist_ok=True)
     file.save(file_path)
+    print(f"Fichier enregistré à {file_path}")
 
     # Extraction du texte du PDF
     text = extract_text_from_pdf(file_path)
+    print("Texte extrait du PDF")
+
     # Analyse des critères via OpenAI
     criteria_text = analyze_report(text)
+    print("Critères analysés via OpenAI")
+
     try:
         # Convertir les critères en dictionnaire Python
         criteria = eval(criteria_text)
-    except:
+    except Exception as e:
+        print(f"Erreur lors de l'analyse des critères : {e}")
         return jsonify({"error": "Failed to parse criteria from OpenAI response"}), 500
 
     # Scraper les annonces immobilières
     results = scrape_leboncoin(criteria)
+    print("Scraping terminé")
 
     # Retourner les résultats
     return jsonify({"criteria": criteria, "results": results})
+
+@app.route('/')
+def home():
+    return "API Flask fonctionne correctement !"
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
