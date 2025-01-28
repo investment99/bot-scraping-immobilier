@@ -57,7 +57,7 @@ def scrape_leboncoin(criteria):
     except Exception as e:
         return [{"error": str(e)}]
 
-@@app.route('/upload_pdf', methods=['POST'])
+@app.route('/upload_pdf', methods=['POST'])
 def upload_pdf():
     print("Requête POST reçue sur /upload_pdf")
     if 'file' not in request.files:
