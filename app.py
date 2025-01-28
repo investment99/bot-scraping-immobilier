@@ -24,12 +24,14 @@ def extract_text_from_pdf(pdf_path):
 
 def analyze_report(text):
     prompt = f"Voici un rapport immobilier :\n{text}\n\nIdentifie les critères de recherche (localisation, budget, type de bien, surface, etc.) et renvoie-les au format JSON. Utilise les clés 'location', 'budget_min', 'budget_max', 'type', 'surface_min', 'surface_max', etc."
-    response = openai.Completion.create(
-        engine="text-davinci-003",
-        prompt=prompt,
-        max_tokens=500
+    response = openai.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": "You are a helpful real estate report analyzer."},
+            {"role": "user", "content": prompt},
+        ]
     )
-    return response.choices[0].text.strip()
+    return response.choices[0].message.content.strip()
 
 def scrape_leboncoin(criteria):
     url = "https://www.leboncoin.fr/recherche"
@@ -83,19 +85,18 @@ def upload_pdf():
 
         results = scrape_leboncoin(criteria)
 
-        return jsonify({"criteria": criteria, "results": results}), 200 # Code 200 OK explicite
+        return jsonify({"criteria": criteria, "results": results}), 200
 
     except Exception as e:
         print(f"Erreur lors du traitement du PDF : {e}")
         return jsonify({"error": "An error occurred during PDF processing: " + str(e)}), 500
 
     finally:
-        os.remove(file_path) # Supprimer le fichier temporaire (même en cas d'erreur)
-
+        os.remove(file_path)
 
 @app.route('/')
 def home():
-    return "API Flask fonctionne correctement !" # Indentation corrigée
+    return "API Flask fonctionne correctement !"
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
