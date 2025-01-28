@@ -10,6 +10,7 @@ import json
 import hashlib
 import re
 import time
+import random
 
 load_dotenv()
 
@@ -101,33 +102,56 @@ def scrape_leboncoin(criteria, limit=5):
         "price_min": criteria.get("budget_min", ""),
         "price_max": criteria.get("budget_max", ""),
     }
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
-    }
+
+    user_agents = [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+        # ... d'autres User-Agents (ajoutez-en plusieurs)
+    ]
+
+    proxies = [
+        "http://user1:password@proxy1_ip:port",  # Remplacez par vos proxies résidentiels
+        "http://user2:password@proxy2_ip:port",
+        # ... d'autres proxies
+    ]
 
     try:
-        response = requests.get(url, params=params, headers=headers)
-        response.raise_for_status()  # Important pour détecter les erreurs HTTP (403, etc.)
+        user_agent = random.choice(user_agents)
+        proxy = random.choice(proxies)
+
+        headers = {"User-Agent": user_agent}
+        proxies_dict = {"http": proxy, "https": proxy}
+
+        response = requests.get(url, params=params, headers=headers, proxies=proxies_dict)
+        response.raise_for_status()
 
         soup = BeautifulSoup(response.text, "html.parser")
         results = []
-        for i, ad in enumerate(soup.find_all("div", class_="aditem-container")):
+
+        annonces = soup.find_all("li", class_="ad-list-item")
+        for i, annonce in enumerate(annonces):
             if i >= limit:
                 break
-            title = ad.find("a", class_="aditem-title").text.strip()
-            price = ad.find("span", class_="item-price").text.strip()
-            link = ad.find("a")["href"]
-            results.append({"title": title, "price": price, "link": link})
+
+            title = annonce.find("a", class_="ad-list-item__title")
+            price = annonce.find("span", class_="ad-list-item__price")
+            link = annonce.find("a", class_="ad-list-item__title")
+
+            if title and price and link:
+                results.append({
+                    "title": title.text.strip(),
+                    "price": price.text.strip(),
+                    "link": "https://www.leboncoin.fr" + link["href"] if link.has_attr("href") else ""
+                })
 
         if not results:
             return [{"error": "Aucune annonce trouvée"}]
 
-        time.sleep(2)  # Délai entre les requêtes
+        time.sleep(random.uniform(2, 5))
         return results
 
     except requests.exceptions.RequestException as e:
         print(f"Erreur scraping: {e}")
-        return [{"error": str(e)}]  # Retourne l'erreur pour l'afficher dans l'application
+        return [{"error": str(e)}]
     except AttributeError as e:
         return [{"error": "Éléments non trouvés sur la page (Leboncoin a peut-être changé son code): " + str(e)}]
     except Exception as e:
@@ -135,7 +159,7 @@ def scrape_leboncoin(criteria, limit=5):
         return [{"error": "Erreur inconnue lors du scraping"}]
 
 
-@app.route('/upload_pdf', methods=['POST'])
+@app.route('/upload_pdf', methods=['POST'])  # Indentation corrigée ici
 def upload_pdf():
     if 'file' not in request.files:
         return jsonify({"error": "No file provided"}), 400
@@ -171,7 +195,7 @@ def upload_pdf():
     finally:
         os.remove(file_path)
 
-@app.route('/')
+@app.route('/')  # Indentation corrigée ici
 def home():
     return "API Flask fonctionne correctement !"
 
