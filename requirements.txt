@@ -1,7 +1,7 @@
 flask
+gunicorn
 pdfplumber
 openai
 requests
 beautifulsoup4
-web: python app.py
-gunicorn
+python-dotenv
