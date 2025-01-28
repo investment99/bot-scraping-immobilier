@@ -59,11 +59,43 @@ def scrape_leboncoin(criteria):
 
 @app.route('/upload_pdf', methods=['POST'])
 def upload_pdf():
-    # ... (le code de la route /upload_pdf reste inchangé)
+    if 'file' not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+
+    file = request.files['file']
+    if not file.filename.endswith('.pdf'):
+        return jsonify({"error": "Invalid file type"}), 400
+
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            file_path = tmp.name
+            file.save(tmp)
+
+        text = extract_text_from_pdf(file_path)
+
+        criteria_text = analyze_report(text)
+
+        try:
+            criteria = json.loads(criteria_text)
+        except json.JSONDecodeError as e:
+            print(f"Erreur lors du décodage JSON des critères : {e}")
+            return jsonify({"error": "Failed to decode JSON criteria from OpenAI response: " + str(e)}), 500
+
+        results = scrape_leboncoin(criteria)
+
+        return jsonify({"criteria": criteria, "results": results}), 200 # Code 200 OK explicite
+
+    except Exception as e:
+        print(f"Erreur lors du traitement du PDF : {e}")
+        return jsonify({"error": "An error occurred during PDF processing: " + str(e)}), 500
+
+    finally:
+        os.remove(file_path) # Supprimer le fichier temporaire (même en cas d'erreur)
+
 
 @app.route('/')
 def home():
-    return "API Flask fonctionne correctement !"
+    return "API Flask fonctionne correctement !" # Indentation corrigée
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
