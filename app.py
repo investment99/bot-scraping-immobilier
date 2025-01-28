@@ -7,6 +7,7 @@ import os
 from dotenv import load_dotenv
 import tempfile
 import json
+import hashlib  # Pour le hash du PDF
 
 load_dotenv()
 
@@ -15,55 +16,64 @@ app = Flask(__name__)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 openai.api_key = OPENAI_API_KEY
 
-def extract_text_from_pdf(pdf_path):
-    with pdfplumber.open(pdf_path) as pdf:
-        text = ""
-        for page in pdf.pages:
-            text += page.extract_text() + "\n"
-    return text
+cache = {}  # Dictionnaire pour le cache
 
-def analyze_report(text):
-    prompt = f"Voici un rapport immobilier :\n{text}\n\nIdentifie les critères de recherche (localisation, budget, type de bien, surface, etc.) et renvoie-les au format JSON. Utilise les clés 'location', 'budget_min', 'budget_max', 'type', 'surface_min', 'surface_max', etc."
-    response = openai.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": "You are a helpful real estate report analyzer."},
-            {"role": "user", "content": prompt},
-        ]
-    )
-    return response.choices[0].message.content.strip()
-
-def scrape_leboncoin(criteria, limit=5):
-    url = "https://www.leboncoin.fr/recherche"
-    params = {
-        "category": "ventes_immobilieres",
-        "location": criteria.get("location", ""),
-        "price_min": criteria.get("budget_min", ""),
-        "price_max": criteria.get("budget_max", ""),
-    }
-    headers = {"User-Agent": "Mozilla/5.0"}
+def extract_relevant_info(pdf_path):
     try:
-        response = requests.get(url, params=params, headers=headers)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, "html.parser")
-        results = []
-        for i, ad in enumerate(soup.find_all("div", class_="aditem-container")):
-            if i >= limit:
-                break
-            title = ad.find("a", class_="aditem-title").text.strip()
-            price = ad.find("span", class_="item-price").text.strip()
-            link = ad.find("a")["href"]
-            results.append({"title": title, "price": price, "link": link})
+        with pdfplumber.open(pdf_path) as pdf:
+            info = {}
+            for page in pdf.pages:
+                text = page.extract_text()
+                # Extraction des infos clés (à adapter à vos PDFs)
+                # Exemple:
+                if "Type de bien" in text:
+                    info["type_de_bien"] = text.split("Type de bien:")[1].split("\n")[0].strip()
+                if "Budget" in text:
+                    budget_str = text.split("Budget:")[1].split("\n")[0].strip()
+                    try:
+                        budget = int(budget_str.replace(" ", "")) # Supprimer espaces
+                        info["budget_min"] = budget * 0.9 # Marge de 10%
+                        info["budget_max"] = budget * 1.1
+                    except ValueError:
+                        pass  # Gérer le cas où le budget n'est pas un nombre
+                if "Localisation" in text:
+                    info["localisation"] = text.split("Localisation:")[1].split("\n")[0].strip()
+                # ... extraire d'autres infos pertinentes
+            return info
+    except Exception as e:
+        print(f"Erreur extraction PDF: {e}")
+        return None
 
-        if not results:
-            return [{"error": "Aucune annonce trouvée"}]
+def analyze_report(pdf_hash, infos):
+    if pdf_hash in cache:
+        return cache[pdf_hash]
 
-        return results
-    except requests.exceptions.RequestException as e:
-        return [{"error": str(e)}]
-    except AttributeError as e:
-        return [{"error": "Éléments non trouvés sur la page (Leboncoin a peut-être changé son code): " + str(e)}]
+    prompt = f"""
+    Analyse les critères de recherche suivants et renvoie-les au format JSON :
+    {json.dumps(infos)}
+    """
+    try:
+        response = openai.chat.completions.create(
+            model="gpt-3.5-turbo",  # Ou un modèle moins coûteux
+            messages=[
+                {"role": "system", "content": "You are a helpful real estate report analyzer."},
+                {"role": "user", "content": prompt},
+            ]
+        )
+        result = response.choices[0].message.content.strip()
+        try:
+            criteria = json.loads(result)
+            cache[pdf_hash] = criteria  # Ajoute au cache
+            return criteria
+        except json.JSONDecodeError as e:
+            print(f"Erreur JSON: {e}, Resultat OpenAI: {result}")
+            return None
+    except Exception as e:
+        print(f"Erreur OpenAI: {e}")
+        return None
 
+
+# ... (scrape_leboncoin inchangé)
 
 @app.route('/upload_pdf', methods=['POST'])
 def upload_pdf():
@@ -79,30 +89,26 @@ def upload_pdf():
             file_path = tmp.name
             file.save(tmp)
 
-        text = extract_text_from_pdf(file_path)
+        with open(file_path, "rb") as f: # Hashage du PDF
+            file_hash = hashlib.md5(f.read()).hexdigest()
 
-        criteria_text = analyze_report(text)
+        relevant_info = extract_relevant_info(file_path)
+        if not relevant_info:
+            return jsonify({"error": "Erreur lors de l'extraction des infos du PDF"}), 500
 
-        try:
-            criteria = json.loads(criteria_text)
-        except json.JSONDecodeError as e:
-            print(f"Erreur lors du décodage JSON des critères : {e}")
-            return jsonify({"error": "Failed to decode JSON criteria from OpenAI response: " + str(e)}), 500
+        criteria = analyze_report(file_hash, relevant_info)
+        if not criteria:
+            return jsonify({"error": "Erreur lors de l'analyse du rapport"}), 500
 
         results = scrape_leboncoin(criteria, limit=5)
 
         return jsonify({"criteria": criteria, "results": results}), 200
 
     except Exception as e:
-        print(f"Erreur lors du traitement du PDF : {e}")
+        print(f"Erreur générale: {e}")
         return jsonify({"error": "An error occurred during PDF processing: " + str(e)}), 500
 
     finally:
         os.remove(file_path)
 
-@app.route('/')
-def home():
-    return "API Flask fonctionne correctement !"
-
-if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+# ... (route / et app.run inchangés)
