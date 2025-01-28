@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 import tempfile
 import json
 import hashlib
+import re
 
 load_dotenv()
 
@@ -21,6 +22,10 @@ cache = {}
 def extract_info(pdf_path):
     try:
         with pdfplumber.open(pdf_path) as pdf:
+            if not pdf.pages:  # Vérification PDF vide
+                print("Erreur: PDF vide")
+                return None
+
             info = {}
             for i, page in enumerate(pdf.pages):
                 if i < 4:  # Ignorer les 4 premières pages
@@ -28,30 +33,41 @@ def extract_info(pdf_path):
 
                 text = page.extract_text()
                 if text:
-                    lines = text.splitlines()
-                    for j, line in enumerate(lines):
-                        if "Type de bien:" in line:
-                            try:
-                                info["type_de_bien"] = lines[j + 1].strip()
-                            except IndexError:
-                                print("Erreur: Index hors limites lors de la lecture du type de bien")
-                        if "Budget" in line:
-                            try:
-                                budget_str = lines[j + 1].strip()
-                                budget = int(budget_str.replace(" ", ""))
-                                info["budget_min"] = budget * 0.9
-                                info["budget_max"] = budget * 1.1
-                            except (ValueError, IndexError):
-                                print("Erreur: Budget non trouvé ou mal formaté")
-                        if "Localisation" in line:
-                            try:
-                                info["localisation"] = lines[j + 1].strip()
-                            except IndexError:
-                                print("Erreur: Localisation non trouvée")
-                        # ... extraire d'autres infos pertinentes
+                    # Type de bien
+                    match = re.search(r"Type de bien\s*:\s*(.*)", text)  # Expression régulière plus robuste
+                    if match:
+                        info["type_de_bien"] = match.group(1).strip()
+                    
+                    # Superficie
+                    match = re.search(r"superficie habitable de\s*(\d+)\s*m²", text, re.IGNORECASE)
+                    if match:
+                        info["superficie"] = int(match.group(1))
+                    
+                    # Localisation (plusieurs options)
+                    match = re.search(r"(centre-ville|Promenade des Anglais)", text, re.IGNORECASE)
+                    if match:
+                        info["localisation"] = match.group(1).strip()
+                    elif "centre-ville" in text.lower() or "Promenade des Anglais" in text.lower(): # Fallback
+                        if "centre-ville" in text.lower():
+                            info["localisation"] = "centre-ville"
+                        else:
+                            info["localisation"] = "Promenade des Anglais"
+
+                    # Budget (plusieurs options)
+                    match = re.search(r"budget idéal de\s*([\d\s]+)\s*EUR", text, re.IGNORECASE)
+                    if match:
+                        budget_str = match.group(1).replace(" ", "")  # Supprimer les espaces
+                        try:
+                            info["budget"] = int(budget_str)
+                        except ValueError:
+                            print("Erreur: Budget non trouvé ou mal formaté")
+
+                    # ... extraire d'autres infos (si nécessaire)
+
             return info
-    except Exception as e:
-        print(f"Erreur lors de l'extraction du PDF: {e}")
+
+    except Exception as e:  # Capture les autres erreurs (fichier non trouvé, etc.)
+        print(f"Erreur générale lors de l'extraction PDF: {e}")
         return None
 
 def analyze_report(pdf_hash, infos):
