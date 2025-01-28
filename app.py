@@ -11,6 +11,7 @@ import hashlib
 import re
 import time
 import random
+from urllib.parse import quote  # Importez quote
 
 load_dotenv()
 
@@ -108,20 +109,33 @@ def scrape_leboncoin(criteria, limit=5):
         # ... d'autres User-Agents (ajoutez-en plusieurs)
     ]
 
-    proxies = [
-        "http://user1:password@proxy1_ip:port",  # Remplacez par vos proxies résidentiels
-        "http://user2:password@proxy2_ip:port",
+    proxies_list = [  # Liste de vos proxies
+        {"url": "http://user1:password@proxy1_ip:port"},  # Exemple
+        {"url": "http://user2:password@proxy2_ip:port"},  # Exemple
         # ... d'autres proxies
     ]
 
     try:
         user_agent = random.choice(user_agents)
-        proxy = random.choice(proxies)
+
+        proxy_data = random.choice(proxies_list)
+        proxy_url = proxy_data["url"]
+
+        # Encodage des caractères spéciaux dans l'URL du proxy
+        try:  # si user et password
+            username, password_host = proxy_url.split("@")
+            username = quote(username.split("//")[1].split(":")[0])  # extraction user
+            password, host = password_host.split(":")
+            password = quote(password)
+            proxy_url = f"http://{username}:{password}@{host}"
+        except:  # sinon juste l'host et le port
+            pass
+
+        proxies = {"http": proxy_url, "https": proxy_url}
 
         headers = {"User-Agent": user_agent}
-        proxies_dict = {"http": proxy, "https": proxy}
 
-        response = requests.get(url, params=params, headers=headers, proxies=proxies_dict)
+        response = requests.get(url, params=params, headers=headers, proxies=proxies)
         response.raise_for_status()
 
         soup = BeautifulSoup(response.text, "html.parser")
@@ -159,7 +173,7 @@ def scrape_leboncoin(criteria, limit=5):
         return [{"error": "Erreur inconnue lors du scraping"}]
 
 
-@app.route('/upload_pdf', methods=['POST'])  # Indentation corrigée ici
+@app.route('/upload_pdf', methods=['POST'])
 def upload_pdf():
     if 'file' not in request.files:
         return jsonify({"error": "No file provided"}), 400
@@ -195,7 +209,7 @@ def upload_pdf():
     finally:
         os.remove(file_path)
 
-@app.route('/')  # Indentation corrigée ici
+@app.route('/')
 def home():
     return "API Flask fonctionne correctement !"
 
