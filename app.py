@@ -11,7 +11,7 @@ import hashlib
 import re
 import time
 import random
-from urllib.parse import quote  # Importez quote si besoin pour user/password proxy
+from urllib.parse import quote
 
 load_dotenv()
 
@@ -36,14 +36,17 @@ def extract_info(pdf_path):
 
                 text = page.extract_text()
                 if text:
+                    # Extraction "Type de bien"
                     match = re.search(r"Type de bien\s*:\s*(.*)", text)
                     if match:
                         info["type_de_bien"] = match.group(1).strip()
 
+                    # Extraction "superficie habitable de X m²"
                     match = re.search(r"superficie habitable de\s*(\d+)\s*m²", text, re.IGNORECASE)
                     if match:
                         info["superficie"] = int(match.group(1))
 
+                    # Extraction localisation
                     match = re.search(r"(centre-ville|Promenade des Anglais)", text, re.IGNORECASE)
                     if match:
                         info["localisation"] = match.group(1).strip()
@@ -53,6 +56,7 @@ def extract_info(pdf_path):
                         else:
                             info["localisation"] = "Promenade des Anglais"
 
+                    # Extraction budget idéal
                     match = re.search(r"budget idéal de\s*([\d\s]+)\s*EUR", text, re.IGNORECASE)
                     if match:
                         budget_str = match.group(1).replace(" ", "")
@@ -67,7 +71,9 @@ def extract_info(pdf_path):
         print(f"Erreur générale lors de l'extraction PDF: {e}")
         return None
 
+
 def analyze_report(pdf_hash, infos):
+    # On conserve la même logique de cache
     if pdf_hash in cache:
         return cache[pdf_hash]
 
@@ -75,8 +81,9 @@ def analyze_report(pdf_hash, infos):
     Analyse les critères de recherche suivants et renvoie-les au format JSON:
     {json.dumps(infos)}
     """
+
     try:
-        # ---- NOUVELLE INTERFACE openai>=1.0.0 ----
+        # On garde openai.Chat.create (nouvelle API)
         response = openai.Chat.create(
             model="gpt-3.5-turbo",
             messages=[
@@ -84,9 +91,7 @@ def analyze_report(pdf_hash, infos):
                 {"role": "user", "content": prompt},
             ]
         )
-        # Accès au texte renvoyé
         result = response.choices[0].message["content"].strip()
-
         try:
             criteria = json.loads(result)
             cache[pdf_hash] = criteria
@@ -94,20 +99,22 @@ def analyze_report(pdf_hash, infos):
         except json.JSONDecodeError as e:
             print(f"Erreur JSON: {e}, Résultat OpenAI: {result}")
             return None
-
     except Exception as e:
         print(f"Erreur OpenAI: {e}")
         return None
 
 
-# -------------------------------------------------------------------------
-# SCRAPERS (Bien’ici, Century21, SeLoger, PAP)
-# -------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------
+# SCRAPERS (remplacement de l'ancien scrape_leboncoin par 4 scrapers + agrégateur)
+# -----------------------------------------------------------------------------------
 
 def scrape_bienici(criteria, limit=5):
+    """
+    Scraper (ou appel API) de Bien'ici, exemple JSON + param filters.
+    À adapter selon la structure réelle actuelle.
+    """
     results = []
     try:
-        # Code inchangé, simplifié, ...
         budget_max = criteria.get("budget", 400000)
         surface_min = criteria.get("superficie", 40)
         postcode = criteria.get("localisation", "75001")
@@ -127,6 +134,7 @@ def scrape_bienici(criteria, limit=5):
                 "livingArea": {"min": int(surface_min)}
             }
         }
+
         base_url = "https://api.bienici.com/api/v1/realEstateAds"
         params = {"filters": json.dumps(filters_payload)}
         headers = {"User-Agent": "Mozilla/5.0"}
@@ -148,6 +156,7 @@ def scrape_bienici(criteria, limit=5):
                 "price": price,
                 "link": link
             })
+
         time.sleep(random.uniform(2, 4))
 
     except Exception as e:
@@ -157,6 +166,9 @@ def scrape_bienici(criteria, limit=5):
 
 
 def scrape_century21(criteria, limit=5):
+    """
+    Scraper HTML sur Century21.fr, exemple GET avec params (transaction=, ville=, etc.)
+    """
     results = []
     try:
         base_url = "https://www.century21.fr/trouver_logement/resultat/"
@@ -179,6 +191,7 @@ def scrape_century21(criteria, limit=5):
         for i, annonce in enumerate(annonces):
             if i >= limit:
                 break
+
             title_el = annonce.find("h2", class_="annonce-title")
             price_el = annonce.find("span", class_="annonce-price")
             link_el = annonce.find("a", class_="annonce-link")
@@ -203,6 +216,9 @@ def scrape_century21(criteria, limit=5):
 
 
 def scrape_seloger(criteria, limit=5):
+    """
+    Exemple d'API SeLoger (endpoint fictif, à adapter).
+    """
     results = []
     try:
         base_url = "https://api-seloger.com/api/v1/listings/search"
@@ -213,8 +229,8 @@ def scrape_seloger(criteria, limit=5):
         payload = {
             "pageIndex": 1,
             "pageSize": limit,
-            "realtyTypes": [1, 2],   # appart, maison
-            "transactionType": 2,    # 2 = vente
+            "realtyTypes": [1, 2],
+            "transactionType": 2,  # 2 = vente
             "price": {"max": budget_max},
             "livingArea": {"min": surface_min},
             "zipCodes": [ville]
@@ -249,13 +265,17 @@ def scrape_seloger(criteria, limit=5):
 
 
 def scrape_pap(criteria, limit=5):
+    """
+    Scraper HTML sur PAP.fr, exemple URL slug /vente-appartements-paris-75-g439
+    """
     results = []
     try:
         base_url = "https://www.pap.fr/annonce/vente-appartements"
         ville = criteria.get("localisation", "paris").lower().replace(" ", "-")
-        slug = f"{ville}-75-g439"  # simplifié pour "Paris" => "paris-75-g439"
-
+        # Simplification: pour Paris => '-75-g439', pour Nice => '-06-g21067', etc.
+        slug = f"{ville}-75-g439"
         url = f"{base_url}-{slug}"
+
         headers = {"User-Agent": "Mozilla/5.0"}
         r = requests.get(url, headers=headers)
         r.raise_for_status()
@@ -294,6 +314,9 @@ def scrape_pap(criteria, limit=5):
 
 
 def scrape_all_sites(criteria, limit=5):
+    """
+    Regroupe les 4 scrapers dans une seule fonction.
+    """
     results = []
     results.extend(scrape_bienici(criteria, limit))
     results.extend(scrape_century21(criteria, limit))
@@ -301,6 +324,10 @@ def scrape_all_sites(criteria, limit=5):
     results.extend(scrape_pap(criteria, limit))
     return results
 
+
+# -----------------------------------------------------------------------------------
+# ROUTES FLASK
+# -----------------------------------------------------------------------------------
 
 @app.route('/upload_pdf', methods=['POST'])
 def upload_pdf():
@@ -327,6 +354,7 @@ def upload_pdf():
         if not criteria:
             return jsonify({"error": "Erreur lors de l'analyse du rapport"}), 500
 
+        # Appel de la nouvelle fonction: on scrape Bienici, Century21, SeLoger, PAP
         results = scrape_all_sites(criteria, limit=5)
 
         return jsonify({"criteria": criteria, "results": results}), 200
