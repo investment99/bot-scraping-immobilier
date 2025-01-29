@@ -112,34 +112,51 @@ def parse_price_to_int(price_str):
 
 def scrape_annonces(criteria, limit=5):
     """
-    Scrape uniquement Century21 (la partie Bien'ici est retirée).
+    Scrape UNIQUEMENT sur la route :
+    https://www.century21.fr/annonces/f/achat-appartement/v-nice/tri-prix-desc/page-{page_num}/?cible=d-06_alpes_maritimes
+    
+    On ajoute un User-Agent plus “classique” pour éviter d’être bloqué.
     """
     annonces = []
 
-    # --- Century 21 ---
+    # On suppose que "century21" est dans criteria["sources"]
     if "century21" in criteria.get("sources", "").lower():
         try:
+            # Si la ville n'est pas "nice", vous pouvez l'adapter
             ville = criteria.get("ville", "nice")
-            max_pages = 3  # Exemple : on boucle sur 3 pages
+
+            # On tente 3 pages
+            max_pages = 3
+            headers = {
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/108.0.0.0 Safari/537.36"
+                )
+            }
 
             for page_num in range(1, max_pages + 1):
-                # URL paramétrée pour la ville + pagination
                 url_century21 = (
-                    f"https://www.century21.fr/annonces/f/achat/v-{ville}/"
-                    f"d-06_alpes_maritimes/page-{page_num}/?cible=d-06_alpes_maritimes"
+                    f"https://www.century21.fr/annonces/f/achat-appartement/v-{ville}/tri-prix-desc/"
+                    f"page-{page_num}/?cible=d-06_alpes_maritimes"
                 )
                 print("Scraping:", url_century21)
-                resp_c21 = requests.get(url_century21)
+
+                resp_c21 = requests.get(url_century21, headers=headers)
                 if resp_c21.status_code in [404, 410]:
                     break
                 resp_c21.raise_for_status()
 
                 soup_c21 = BeautifulSoup(resp_c21.text, "html.parser")
 
+                # On recherche les blocs d'annonces
                 blocks = soup_c21.find_all("div", class_="c-the-property-thumbnail-with-content")
+                print(f"Nombre de blocks trouvés (page {page_num}):", len(blocks))
+
                 if not blocks:
                     break  # plus de pages ?
 
+                # Pour chaque annonce, extraire l'info
                 for block in blocks:
                     right_part = block.find("div", class_="c-the-property-thumbnail-with-content__col-right")
                     if not right_part:
@@ -191,7 +208,7 @@ def scrape_annonces(criteria, limit=5):
     if not annonces:
         return [{"error": "Aucune annonce trouvée sur Century21"}]
 
-    # Filtrage local final, si nécessaire
+    # Filtrage local final (ex: budget_min, budget_max)
     filtered = []
     bmin = criteria.get("budget_min")
     bmax = criteria.get("budget_max")
@@ -207,7 +224,6 @@ def scrape_annonces(criteria, limit=5):
         return [{"error": "Aucune annonce ne correspond aux critères élargis"}]
 
     return filtered[:limit]
-
 
 @app.route('/upload_pdf', methods=['POST'])
 def upload_pdf():
@@ -234,27 +250,27 @@ def upload_pdf():
         if not criteria:
             return jsonify({"error": "Erreur lors de l'analyse du rapport"}), 500
 
-        # Exemple d'élargissement
+        # Ex: élargir la surface
         if "superficie" in criteria:
             surf = criteria["superficie"]
             criteria["surface_min"] = max(0, surf - 10)
             criteria["surface_max"] = surf + 20
 
+        # Ex: élargir le budget
         if "budget" in criteria:
             budg = criteria["budget"]
             criteria["budget_min"] = budg
             criteria["budget_max"] = budg + 200000
 
-        # Si "sources" n'est pas dans criteria, on met "century21"
+        # si "sources" n'est pas dans criteria => on force
         if "sources" not in criteria:
             criteria["sources"] = "century21"
 
-        # Si "ville" n'est pas présent, fallback
+        # si "ville" pas présent => fallback "nice"
         if "ville" not in criteria:
             criteria["ville"] = "nice"
 
         results = scrape_annonces(criteria, limit=5)
-
         return jsonify({"criteria": criteria, "results": results}), 200
 
     except Exception as e:
