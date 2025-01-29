@@ -70,7 +70,6 @@ def extract_info(pdf_path):
         return None
 
 def analyze_report(pdf_hash, infos):
-    # On utilise un cache pour éviter de ré-analyser le même PDF
     if pdf_hash in cache:
         return cache[pdf_hash]
 
@@ -103,13 +102,9 @@ def analyze_report(pdf_hash, infos):
 
 
 # ----------------------------------------------------------------
-# BLOC B : Filtrage local après scraping (avant return)
+# BLOC B (inchangé) : parse_price_to_int + scrape_annonces
 # ----------------------------------------------------------------
 def parse_price_to_int(price_str):
-    """
-    Essaie d'extraire un entier depuis une chaîne de type '420 000 €' ou '420000'.
-    Retourne None en cas d'échec.
-    """
     try:
         cleaned = (price_str
                    .replace("€", "")
@@ -127,26 +122,33 @@ def scrape_annonces(criteria, limit=5):
     """
     annonces = []
 
-    # --- Century 21 ---
+    # --- Century 21 : ex. page "trouver_logement/resultat/?transaction=acheter&ville=Nice"
     if "century21" in criteria.get("sources", "").lower():
         try:
-            url_century21 = "https://www.century21.fr/acheter/"  # Exemple d'URL, à adapter
+            # Exemple d'URL de recherche sur Century21 (à adapter selon la ville / code postal)
+            url_century21 = (
+                "https://www.century21.fr/trouver_logement/resultat/"
+                "?transaction=acheter&ville=Nice"
+            )
             response_century21 = requests.get(url_century21)
             response_century21.raise_for_status()
             soup_century21 = BeautifulSoup(response_century21.content, "html.parser")
 
-            for annonce_century21 in soup_century21.find_all("article", class_="ad-item"):  # Exemple
-                title_century21 = annonce_century21.find("a", class_="ad-title")
-                price_century21 = annonce_century21.find("span", class_="ad-price")
-                link_century21 = annonce_century21.find("a", class_="ad-title")
+            # Exemple de sélecteurs (fictifs) à adapter
+            # Recherchez la vraie structure via F12 -> Inspecter sur la page
+            for annonce_century21 in soup_century21.find_all("div", class_="annonce-item"):
+                title_el = annonce_century21.find("h2", class_="annonce-title")
+                price_el = annonce_century21.find("span", class_="annonce-price")
+                link_el = annonce_century21.find("a", class_="annonce-link")
 
-                if title_century21 and price_century21 and link_century21 and link_century21.has_attr("href"):
+                if title_el and price_el and link_el and link_el.has_attr("href"):
                     annonces.append({
-                        "title": title_century21.text.strip(),
-                        "price": price_century21.text.strip(),
-                        "link": "https://www.century21.fr" + link_century21["href"],
-                        "source": "Century 21"
+                        "title": title_el.get_text(strip=True),
+                        "price": price_el.get_text(strip=True),
+                        "link": "https://www.century21.fr" + link_el["href"],
+                        "source": "Century21"
                     })
+
         except requests.exceptions.RequestException as e:
             print(f"Erreur scraping Century 21 (requête): {e}")
             traceback.print_exc()
@@ -154,26 +156,66 @@ def scrape_annonces(criteria, limit=5):
             print(f"Erreur parsing Century 21: {e}")
             traceback.print_exc()
 
-    # --- Bien'ici ---
+    # --- Bien'ici : on interroge DIRECTEMENT l'API JSON (pas le HTML)
     if "bienici" in criteria.get("sources", "").lower():
         try:
-            url_bienici = "https://www.bienici.com/recherche/location/appartement/nice"  # Exemple d'URL, à adapter
-            response_bienici = requests.get(url_bienici)
-            response_bienici.raise_for_status()
-            soup_bienici = BeautifulSoup(response_bienici.content, "html.parser")
+            # On construit un "filters_payload" : on peut y inclure surface/budget s'il faut.
+            # Voici un exemple simplifié : on suppose code postal = "06000" (Nice)
+            # ou on peut coder la "localisation" en param.
+            budget_min = criteria.get("budget_min", 0)
+            budget_max = criteria.get("budget_max", 999999999)
+            surface_min = criteria.get("surface_min", 0)
+            surface_max = criteria.get("surface_max", 9999)
 
-            for annonce_bienici in soup_bienici.find_all("a", class_="search-result-card"):  # Exemple
-                title_bienici = annonce_bienici.find("h2")
-                price_bienici = annonce_bienici.find("span", class_="price")
-                link_bienici = annonce_bienici.get("href")
+            filters_payload = {
+                "size": 24,
+                "from": 0,
+                "filters": {
+                    "category": {"value": "buy"},  # "buy" pour vente
+                    "locations": [
+                        {
+                            "type": "city",
+                            "postalCode": "06000"  # ex. Nice
+                        }
+                    ],
+                    "price": {
+                        "min": int(budget_min),
+                        "max": int(budget_max)
+                    },
+                    "livingArea": {
+                        "min": int(surface_min),
+                        "max": int(surface_max)
+                    }
+                }
+            }
 
-                if title_bienici and price_bienici and link_bienici:
-                    annonces.append({
-                        "title": title_bienici.text.strip(),
-                        "price": price_bienici.text.strip(),
-                        "link": "https://www.bienici.com" + link_bienici,
-                        "source": "Bien'ici"
-                    })
+            base_url = "https://api.bienici.com/api/v1/realEstateAds"
+            params = {
+                "filters": json.dumps(filters_payload)
+            }
+            headers = {"User-Agent": "Mozilla/5.0"}
+
+            resp = requests.get(base_url, params=params, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+
+            ads = data.get("realEstateAds", [])
+            for ad in ads:
+                title = ad.get("title", "N/A")
+                p_obj = ad.get("price", {})
+                price_value = p_obj.get("value", "N/A")
+
+                # Lien d'annonce (id ?)
+                ad_id = ad.get("id", "")
+                link = f"https://www.bienici.com/annonce/{ad_id}"
+
+                annonces.append({
+                    "title": str(title),
+                    "price": str(price_value),
+                    "link": link,
+                    "source": "Bienici"
+                })
+
         except requests.exceptions.RequestException as e:
             print(f"Erreur scraping Bien'ici (requête): {e}")
             traceback.print_exc()
@@ -190,24 +232,12 @@ def scrape_annonces(criteria, limit=5):
     filtered = []
     bmin = criteria.get("budget_min")
     bmax = criteria.get("budget_max")
-    smin = criteria.get("surface_min")
-    smax = criteria.get("surface_max")
 
-    # Si vous ne récupérez pas la surface dans 'annonces', le filtrage de surface ne fera rien
-    # On fait un exemple minimal pour le prix.
     for a in annonces:
         p = parse_price_to_int(a.get("price", ""))
         if p is not None and bmin is not None and bmax is not None:
             if p < bmin or p > bmax:
-                # On exclut cette annonce
                 continue
-
-        # Pour la surface, il faudrait d'abord extraire la surface du code HTML (non fait ici).
-        # if smin is not None and smax is not None and "surface" in a:
-        #     surf = a["surface"]
-        #     if surf < smin or surf > smax:
-        #         continue
-
         filtered.append(a)
 
     if not filtered:
@@ -230,7 +260,6 @@ def upload_pdf():
             file_path = tmp.name
             file.save(tmp)
 
-        # Calcule le hash du PDF pour le cache
         with open(file_path, "rb") as f:
             file_hash = hashlib.md5(f.read()).hexdigest()
 
@@ -242,22 +271,17 @@ def upload_pdf():
         if not criteria:
             return jsonify({"error": "Erreur lors de l'analyse du rapport"}), 500
 
-        # ----------------------------------------------------------------
-        # BLOC A : ÉLARGIR CRITÈRES (budget, surface) AVANT scraping
-        # ----------------------------------------------------------------
+        # Élargir les critères (BLOC A inchangé)
         if "superficie" in criteria:
             surf = criteria["superficie"]
-            # Par ex : -10 / +20
             criteria["surface_min"] = max(0, surf - 10)
             criteria["surface_max"] = surf + 20
 
         if "budget" in criteria:
             budg = criteria["budget"]
-            # Ex : min = budg, max = budg + 200000
             criteria["budget_min"] = budg
             criteria["budget_max"] = budg + 200000
 
-        # Par exemple, si vous voulez préciser quelles "sources" scraper :
         if "sources" not in criteria:
             criteria["sources"] = "bienici, century21"
 
