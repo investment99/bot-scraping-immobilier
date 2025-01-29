@@ -22,6 +22,14 @@ def home():
 def test():
     return "🚀 Route de test fonctionne !"
 
+@app.route('/routes', methods=['GET'])
+def list_routes():
+    """Affiche toutes les routes disponibles pour voir si /search_real_estate est bien chargée."""
+    routes = []
+    for rule in app.url_map.iter_rules():
+        routes.append(str(rule))
+    return jsonify({"routes": routes})
+
 @app.route('/search_real_estate', methods=['POST'])
 def search_real_estate():
     """Génère des annonces basées sur les critères envoyés par WordPress"""
@@ -61,12 +69,12 @@ def search_real_estate():
 
         print("📡 Envoi du prompt à OpenAI...")
 
-        rresponse = openai.chat.completions.create(
-    model="gpt-4",
-    messages=[{"role": "user", "content": prompt}]
+        response = openai.chat.completions.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt}]
         )
 
-        raw_result = response["choices"][0]["message"]["content"].strip()
+        raw_result = response.choices[0].message.content.strip()
         print(f"🧠 Réponse brute OpenAI : {raw_result}")
 
         # Vérifier et corriger JSON si nécessaire
