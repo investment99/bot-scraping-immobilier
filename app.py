@@ -95,15 +95,33 @@ def analyze_report(pdf_hash, infos):
         print(f"Erreur OpenAI: {e}")
         return None
 
-def scrape_leboncoin(criteria, limit=5):
-    url = "https://www.leboncoin.fr/recherche"
-    params = {
-        "category": "ventes_immobilieres",
-        "location": criteria.get("location", ""),
-        "price_min": criteria.get("budget_min", ""),
-        "price_max": criteria.get("budget_max", ""),
-    }
+def scrape_annonces(criteria, limit=5):
+    annonces = []
 
+    # --- Century 21 ---
+    if "century21" in criteria.get("sources", "").lower():
+        try:
+            url_century21 = "https://www.century21.fr/annonces/vente-maison-nice-06000/"  # Example URL, adapt as needed
+            response_century21 = requests.get(url_century21)
+            response_century21.raise_for_status()
+            soup_century21 = BeautifulSoup(response_century21.content, "html.parser")
+
+            for annonce_century21 in soup_century21.find_all("article", class_="ad-item"):  # Example selector, adapt as needed
+                title_century21 = annonce_century21.find("a", class_="ad-title")  # Example selector, adapt as needed
+                price_century21 = annonce_century21.find("span", class_="ad-price")  # Example selector, adapt as needed
+                link_century21 = annonce_century21.find("a", class_="ad-title")  # Example selector, adapt as needed
+
+                if title_century21 and price_century21 and link_century21 and link_century21.has_attr("href"):
+                    annonces.append({
+                        "title": title_century21.text.strip() if title_century21 else "N/A",
+                        "price": price_century21.text.strip() if price_century21 else "N/A",
+                        "link": "https://www.century21.fr" + link_century21["href"] if link_century21.has_attr("href") else "N/A",
+                        "source": "Century 21"
+                    })
+        except requests.exceptions.RequestException as e:
+            print(f"Erreur scraping Century 21: {e}")
+        except AttributeError as e:
+            print(f"Erreur parsing Century 21: {e}")
     user_agents = [
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
         # ... d'autres User-Agents (ajoutez-en plusieurs)
