@@ -31,7 +31,6 @@ def extract_info(pdf_path):
 
             info = {}
             for i, page in enumerate(pdf.pages):
-                # Si vous aviez besoin de sauter des pages, vous le gardez :
                 if i < 4:
                     continue
 
@@ -69,7 +68,6 @@ def extract_info(pdf_path):
         return None
 
 def analyze_report(pdf_hash, infos):
-    # Vérifie si on a déjà analysé ce PDF (cache)
     if pdf_hash in cache:
         return cache[pdf_hash]
 
@@ -78,14 +76,17 @@ def analyze_report(pdf_hash, infos):
     {json.dumps(infos)}
     """
     try:
-        response = openai.ChatCompletion.create(
+        # ---- NOUVELLE INTERFACE openai>=1.0.0 ----
+        response = openai.Chat.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a helpful real estate report analyzer."},
                 {"role": "user", "content": prompt},
             ]
         )
-        result = response.choices[0].message.content.strip()
+        # Accès au texte renvoyé
+        result = response.choices[0].message["content"].strip()
+
         try:
             criteria = json.loads(result)
             cache[pdf_hash] = criteria
@@ -93,58 +94,23 @@ def analyze_report(pdf_hash, infos):
         except json.JSONDecodeError as e:
             print(f"Erreur JSON: {e}, Résultat OpenAI: {result}")
             return None
+
     except Exception as e:
         print(f"Erreur OpenAI: {e}")
         return None
 
 
-# -----------------------------------------------------------------------------------
-# NOUVEAUX SCRAPERS (à adapter si la structure des sites change)
-# -----------------------------------------------------------------------------------
+# -------------------------------------------------------------------------
+# SCRAPERS (Bien’ici, Century21, SeLoger, PAP)
+# -------------------------------------------------------------------------
 
 def scrape_bienici(criteria, limit=5):
-    """
-    Exemple d'appel à l'API de Bien'ici, qui renvoie souvent du JSON.
-    On utilise des paramètres 'filters' encodés en JSON dans la requête.
-    """
     results = []
-    
-    # Liste de user-agents ou proxies si vous souhaitez en changer aléatoirement
-    user_agents = [
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
-        # ... ajoutez-en d'autres
-    ]
-    proxies_list = [
-        # {"url": "http://user:password@proxy_ip:port"},
-        # ... si vous voulez en utiliser
-    ]
     try:
-        user_agent = random.choice(user_agents)
-        headers = {"User-Agent": user_agent}
-
-        # Si vous souhaitez utiliser un proxy de la liste
-        if proxies_list:
-            proxy_data = random.choice(proxies_list)
-            proxy_url = proxy_data["url"]
-            # Encodage éventuel user:pass
-            try:
-                username, password_host = proxy_url.split("@")
-                username = quote(username.split("//")[1].split(":")[0])
-                password, host = password_host.split(":")
-                password = quote(password)
-                proxy_url = f"http://{username}:{password}@{host}"
-            except:
-                pass
-            proxies = {"http": proxy_url, "https": proxy_url}
-        else:
-            proxies = None
-
-        # Préparer les filtres en JSON
+        # Code inchangé, simplifié, ...
         budget_max = criteria.get("budget", 400000)
         surface_min = criteria.get("superficie", 40)
-        postcode = "75001"
-        if "localisation" in criteria:
-            postcode = criteria["localisation"]
+        postcode = criteria.get("localisation", "75001")
 
         filters_payload = {
             "size": 24,
@@ -161,13 +127,11 @@ def scrape_bienici(criteria, limit=5):
                 "livingArea": {"min": int(surface_min)}
             }
         }
-
         base_url = "https://api.bienici.com/api/v1/realEstateAds"
-        params = {
-            "filters": json.dumps(filters_payload)
-        }
+        params = {"filters": json.dumps(filters_payload)}
+        headers = {"User-Agent": "Mozilla/5.0"}
 
-        resp = requests.get(base_url, params=params, headers=headers, proxies=proxies)
+        resp = requests.get(base_url, params=params, headers=headers)
         resp.raise_for_status()
         data = resp.json()
 
@@ -184,52 +148,18 @@ def scrape_bienici(criteria, limit=5):
                 "price": price,
                 "link": link
             })
-
         time.sleep(random.uniform(2, 4))
 
-    except requests.exceptions.RequestException as e:
+    except Exception as e:
         print(f"Erreur scraping Bienici: {e}")
         results.append({"error": f"Bienici: {str(e)}"})
-    except Exception as e:
-        print(f"Erreur générale Bienici: {e}")
-        results.append({"error": f"Bienici: {str(e)}"})
-
     return results
 
 
 def scrape_century21(criteria, limit=5):
-    """
-    Exemple de scraping HTML sur Century21.fr
-    On construit l'URL avec des paramètres de recherche classiques.
-    """
     results = []
-
-    user_agents = [
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
-    ]
-    proxies_list = []
-
     try:
-        user_agent = random.choice(user_agents)
-        headers = {"User-Agent": user_agent}
-
-        if proxies_list:
-            proxy_data = random.choice(proxies_list)
-            proxy_url = proxy_data["url"]
-            try:
-                username, password_host = proxy_url.split("@")
-                username = quote(username.split("//")[1].split(":")[0])
-                password, host = password_host.split(":")
-                password = quote(password)
-                proxy_url = f"http://{username}:{password}@{host}"
-            except:
-                pass
-            proxies = {"http": proxy_url, "https": proxy_url}
-        else:
-            proxies = None
-
         base_url = "https://www.century21.fr/trouver_logement/resultat/"
-
         ville = criteria.get("localisation", "paris")
         budget_max = criteria.get("budget", 300000)
         surface_min = criteria.get("superficie", 40)
@@ -240,8 +170,8 @@ def scrape_century21(criteria, limit=5):
             "prix_max": budget_max,
             "surface_min": surface_min
         }
-
-        r = requests.get(base_url, params=params, headers=headers, proxies=proxies)
+        headers = {"User-Agent": "Mozilla/5.0"}
+        r = requests.get(base_url, params=params, headers=headers)
         r.raise_for_status()
         soup = BeautifulSoup(r.text, "html.parser")
 
@@ -266,65 +196,34 @@ def scrape_century21(criteria, limit=5):
 
         time.sleep(random.uniform(2, 4))
 
-    except requests.exceptions.RequestException as e:
+    except Exception as e:
         print(f"Erreur scraping Century21: {e}")
         results.append({"error": f"Century21: {str(e)}"})
-    except Exception as e:
-        print(f"Erreur générale Century21: {e}")
-        results.append({"error": f"Century21: {str(e)}"})
-
     return results
 
 
 def scrape_seloger(criteria, limit=5):
-    """
-    Exemple d'appel API (POST) sur SeLoger, selon un endpoint qu'on détermine en observant le Network.
-    """
     results = []
-
-    user_agents = [
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
-    ]
-    proxies_list = []
-
     try:
-        user_agent = random.choice(user_agents)
-        headers = {
-            "User-Agent": user_agent,
-            "Content-Type": "application/json"
-        }
-
-        if proxies_list:
-            proxy_data = random.choice(proxies_list)
-            proxy_url = proxy_data["url"]
-            try:
-                username, password_host = proxy_url.split("@")
-                username = quote(username.split("//")[1].split(":")[0])
-                password, host = password_host.split(":")
-                password = quote(password)
-                proxy_url = f"http://{username}:{password}@{host}"
-            except:
-                pass
-            proxies = {"http": proxy_url, "https": proxy_url}
-        else:
-            proxies = None
-
+        base_url = "https://api-seloger.com/api/v1/listings/search"
         budget_max = criteria.get("budget", 300000)
         surface_min = criteria.get("superficie", 40)
-        ville = criteria.get("localisation", "75001")  # supposons code postal
+        ville = criteria.get("localisation", "75001")  # code postal ?
 
-        base_url = "https://api-seloger.com/api/v1/listings/search"
         payload = {
             "pageIndex": 1,
-            "pageSize": limit,       # On limite au 'limit' souhaité
-            "realtyTypes": [1, 2],   # ex. 1 = appart, 2 = maison
-            "transactionType": 2,    # 2 = vente, 1 = location
+            "pageSize": limit,
+            "realtyTypes": [1, 2],   # appart, maison
+            "transactionType": 2,    # 2 = vente
             "price": {"max": budget_max},
             "livingArea": {"min": surface_min},
-            "zipCodes": [ville],     # code postal
+            "zipCodes": [ville]
         }
-
-        r = requests.post(base_url, headers=headers, data=json.dumps(payload), proxies=proxies)
+        headers = {
+            "User-Agent": "Mozilla/5.0",
+            "Content-Type": "application/json"
+        }
+        r = requests.post(base_url, headers=headers, data=json.dumps(payload))
         r.raise_for_status()
         data = r.json()
 
@@ -343,57 +242,22 @@ def scrape_seloger(criteria, limit=5):
 
         time.sleep(random.uniform(2, 4))
 
-    except requests.exceptions.RequestException as e:
+    except Exception as e:
         print(f"Erreur scraping SeLoger: {e}")
         results.append({"error": f"SeLoger: {str(e)}"})
-    except Exception as e:
-        print(f"Erreur générale SeLoger: {e}")
-        results.append({"error": f"SeLoger: {str(e)}"})
-
     return results
 
 
 def scrape_pap(criteria, limit=5):
-    """
-    Exemple de scraping HTML sur PAP.fr, en construisant un URL de recherche.
-    """
     results = []
-
-    user_agents = [
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
-    ]
-    proxies_list = []
-
     try:
-        user_agent = random.choice(user_agents)
-        headers = {"User-Agent": user_agent}
-
-        if proxies_list:
-            proxy_data = random.choice(proxies_list)
-            proxy_url = proxy_data["url"]
-            try:
-                username, password_host = proxy_url.split("@")
-                username = quote(username.split("//")[1].split(":")[0])
-                password, host = password_host.split(":")
-                password = quote(password)
-                proxy_url = f"http://{username}:{password}@{host}"
-            except:
-                pass
-            proxies = {"http": proxy_url, "https": proxy_url}
-        else:
-            proxies = None
-
         base_url = "https://www.pap.fr/annonce/vente-appartements"
         ville = criteria.get("localisation", "paris").lower().replace(" ", "-")
-
-        # Exemple: /vente-appartements-paris-75-g439
-        # Ici on simplifie, on suppose Paris => "paris-75-g439" 
-        slug = f"{ville}-75-g439"
-        # Pour Nice => "nice-06-g21067", etc., à adapter si besoin
+        slug = f"{ville}-75-g439"  # simplifié pour "Paris" => "paris-75-g439"
 
         url = f"{base_url}-{slug}"
-
-        r = requests.get(url, headers=headers, proxies=proxies)
+        headers = {"User-Agent": "Mozilla/5.0"}
+        r = requests.get(url, headers=headers)
         r.raise_for_status()
         soup = BeautifulSoup(r.text, "html.parser")
 
@@ -423,20 +287,13 @@ def scrape_pap(criteria, limit=5):
 
         time.sleep(random.uniform(2, 4))
 
-    except requests.exceptions.RequestException as e:
+    except Exception as e:
         print(f"Erreur scraping PAP: {e}")
         results.append({"error": f"PAP: {str(e)}"})
-    except Exception as e:
-        print(f"Erreur générale PAP: {e}")
-        results.append({"error": f"PAP: {str(e)}"})
-
     return results
 
 
 def scrape_all_sites(criteria, limit=5):
-    """
-    Appelle nos 4 scrapers et agrège les résultats dans une seule liste.
-    """
     results = []
     results.extend(scrape_bienici(criteria, limit))
     results.extend(scrape_century21(criteria, limit))
@@ -444,10 +301,6 @@ def scrape_all_sites(criteria, limit=5):
     results.extend(scrape_pap(criteria, limit))
     return results
 
-
-# -----------------------------------------------------------------------------------
-# ROUTE FLASK
-# -----------------------------------------------------------------------------------
 
 @app.route('/upload_pdf', methods=['POST'])
 def upload_pdf():
@@ -474,7 +327,6 @@ def upload_pdf():
         if not criteria:
             return jsonify({"error": "Erreur lors de l'analyse du rapport"}), 500
 
-        # On appelle désormais la fonction qui scrape les 4 sites
         results = scrape_all_sites(criteria, limit=5)
 
         return jsonify({"criteria": criteria, "results": results}), 200
