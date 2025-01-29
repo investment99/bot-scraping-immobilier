@@ -101,9 +101,6 @@ def analyze_report(pdf_hash, infos):
         return None
 
 
-# ----------------------------------------------------------------
-# BLOC B (inchangé) : parse_price_to_int + scrape_annonces
-# ----------------------------------------------------------------
 def parse_price_to_int(price_str):
     try:
         cleaned = (price_str
@@ -122,32 +119,54 @@ def scrape_annonces(criteria, limit=5):
     """
     annonces = []
 
-    # --- Century 21 : ex. page "trouver_logement/resultat/?transaction=acheter&ville=Nice"
+    # --- Century 21 ---
     if "century21" in criteria.get("sources", "").lower():
         try:
-            # Exemple d'URL de recherche sur Century21 (à adapter selon la ville / code postal)
-            url_century21 = (
-                "https://www.century21.fr/trouver_logement/resultat/"
-                "?transaction=acheter&ville=Nice"
-            )
+            # NOUVELLE URL
+            url_century21 = "https://www.century21.fr/annonces/f/achat/v-nice/d-06_alpes_maritimes/?cible=d-06_alpes_maritimes"
             response_century21 = requests.get(url_century21)
             response_century21.raise_for_status()
+
             soup_century21 = BeautifulSoup(response_century21.content, "html.parser")
 
-            # Exemple de sélecteurs (fictifs) à adapter
-            # Recherchez la vraie structure via F12 -> Inspecter sur la page
-            for annonce_century21 in soup_century21.find_all("div", class_="annonce-item"):
-                title_el = annonce_century21.find("h2", class_="annonce-title")
-                price_el = annonce_century21.find("span", class_="annonce-price")
-                link_el = annonce_century21.find("a", class_="annonce-link")
+            # On cible <div class="c-the-property-thumbnail-with-content__col-right">
+            blocks = soup_century21.find_all("div", class_="c-the-property-thumbnail-with-content__col-right")
 
-                if title_el and price_el and link_el and link_el.has_attr("href"):
-                    annonces.append({
-                        "title": title_el.get_text(strip=True),
-                        "price": price_el.get_text(strip=True),
-                        "link": "https://www.century21.fr" + link_el["href"],
-                        "source": "Century21"
-                    })
+            for block in blocks:
+                # Récupération du bloc "NICE 06, 315 m², 10 pièces, etc."
+                info_el = block.find("div", class_="c-text-theme-heading-4")
+                info_text = info_el.get_text(strip=True) if info_el else ""
+
+                surface, pieces = None, None
+                match_surface_pieces = re.search(r"(\d+)\s*m².*?(\d+)\s*pièces", info_text)
+                if match_surface_pieces:
+                    surface = int(match_surface_pieces.group(1))
+                    pieces = int(match_surface_pieces.group(2))
+
+                # Type de bien : "Maison à vendre" (c-text-theme-heading-3)
+                type_el = block.find("div", class_="c-text-theme-heading-3")
+                property_type = type_el.get_text(strip=True) if type_el else None
+
+                # Prix : dans c-text-theme-heading-1
+                price_el = block.find("div", class_="c-text-theme-heading-1")
+                price = price_el.get_text(strip=True) if price_el else None
+
+                # Lien : <a class="c-the-button" href="...">
+                link_el = block.find("a", class_="c-the-button")
+                link = None
+                if link_el and link_el.has_attr("href"):
+                    link = link_el["href"]
+                    if link.startswith("/"):
+                        link = "https://www.century21.fr" + link
+
+                annonces.append({
+                    "info_complet": info_text,
+                    "surface": surface,
+                    "pieces": pieces,
+                    "type_de_bien": property_type,
+                    "price": price,
+                    "link": link
+                })
 
         except requests.exceptions.RequestException as e:
             print(f"Erreur scraping Century 21 (requête): {e}")
@@ -156,66 +175,26 @@ def scrape_annonces(criteria, limit=5):
             print(f"Erreur parsing Century 21: {e}")
             traceback.print_exc()
 
-    # --- Bien'ici : on interroge DIRECTEMENT l'API JSON (pas le HTML)
+    # --- Bien'ici (reste inchangé) ---
     if "bienici" in criteria.get("sources", "").lower():
         try:
-            # On construit un "filters_payload" : on peut y inclure surface/budget s'il faut.
-            # Voici un exemple simplifié : on suppose code postal = "06000" (Nice)
-            # ou on peut coder la "localisation" en param.
-            budget_min = criteria.get("budget_min", 0)
-            budget_max = criteria.get("budget_max", 999999999)
-            surface_min = criteria.get("surface_min", 0)
-            surface_max = criteria.get("surface_max", 9999)
+            url_bienici = "https://www.bienici.com/recherche/location/appartement/nice"  # Exemple d'URL, à adapter
+            response_bienici = requests.get(url_bienici)
+            response_bienici.raise_for_status()
+            soup_bienici = BeautifulSoup(response_bienici.content, "html.parser")
 
-            filters_payload = {
-                "size": 24,
-                "from": 0,
-                "filters": {
-                    "category": {"value": "buy"},  # "buy" pour vente
-                    "locations": [
-                        {
-                            "type": "city",
-                            "postalCode": "06000"  # ex. Nice
-                        }
-                    ],
-                    "price": {
-                        "min": int(budget_min),
-                        "max": int(budget_max)
-                    },
-                    "livingArea": {
-                        "min": int(surface_min),
-                        "max": int(surface_max)
-                    }
-                }
-            }
+            for annonce_bienici in soup_bienici.find_all("a", class_="search-result-card"):
+                title_bienici = annonce_bienici.find("h2")
+                price_bienici = annonce_bienici.find("span", class_="price")
+                link_bienici = annonce_bienici.get("href")
 
-            base_url = "https://api.bienici.com/api/v1/realEstateAds"
-            params = {
-                "filters": json.dumps(filters_payload)
-            }
-            headers = {"User-Agent": "Mozilla/5.0"}
-
-            resp = requests.get(base_url, params=params, headers=headers)
-            resp.raise_for_status()
-            data = resp.json()
-
-            ads = data.get("realEstateAds", [])
-            for ad in ads:
-                title = ad.get("title", "N/A")
-                p_obj = ad.get("price", {})
-                price_value = p_obj.get("value", "N/A")
-
-                # Lien d'annonce (id ?)
-                ad_id = ad.get("id", "")
-                link = f"https://www.bienici.com/annonce/{ad_id}"
-
-                annonces.append({
-                    "title": str(title),
-                    "price": str(price_value),
-                    "link": link,
-                    "source": "Bienici"
-                })
-
+                if title_bienici and price_bienici and link_bienici:
+                    annonces.append({
+                        "title": title_bienici.text.strip(),
+                        "price": price_bienici.text.strip(),
+                        "link": "https://www.bienici.com" + link_bienici,
+                        "source": "Bien'ici"
+                    })
         except requests.exceptions.RequestException as e:
             print(f"Erreur scraping Bien'ici (requête): {e}")
             traceback.print_exc()
@@ -226,9 +205,7 @@ def scrape_annonces(criteria, limit=5):
     if not annonces:
         return [{"error": "Aucune annonce trouvée sur les sites spécifiés"}]
 
-    # ----------------------
-    # Filtrage local
-    # ----------------------
+    # Filtrage local final (inchangé)
     filtered = []
     bmin = criteria.get("budget_min")
     bmax = criteria.get("budget_max")
@@ -271,7 +248,7 @@ def upload_pdf():
         if not criteria:
             return jsonify({"error": "Erreur lors de l'analyse du rapport"}), 500
 
-        # Élargir les critères (BLOC A inchangé)
+        # Élargir
         if "superficie" in criteria:
             surf = criteria["superficie"]
             criteria["surface_min"] = max(0, surf - 10)
