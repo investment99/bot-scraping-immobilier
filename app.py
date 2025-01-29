@@ -11,7 +11,7 @@ import hashlib
 import re
 import time
 import random
-from urllib.parse import quote
+from urllib.parse import quote  # Importez quote
 
 load_dotenv()
 
@@ -36,27 +36,23 @@ def extract_info(pdf_path):
 
                 text = page.extract_text()
                 if text:
-                    # Extraction "Type de bien"
                     match = re.search(r"Type de bien\s*:\s*(.*)", text)
                     if match:
                         info["type_de_bien"] = match.group(1).strip()
 
-                    # Extraction "superficie habitable de X m²"
                     match = re.search(r"superficie habitable de\s*(\d+)\s*m²", text, re.IGNORECASE)
                     if match:
                         info["superficie"] = int(match.group(1))
 
-                    # Extraction localisation
                     match = re.search(r"(centre-ville|Promenade des Anglais)", text, re.IGNORECASE)
                     if match:
                         info["localisation"] = match.group(1).strip()
-                    elif "centre-ville" in text.lower() or "promenade des anglais" in text.lower():
+                    elif "centre-ville" in text.lower() or "Promenade des Anglais" in text.lower():
                         if "centre-ville" in text.lower():
                             info["localisation"] = "centre-ville"
                         else:
                             info["localisation"] = "Promenade des Anglais"
 
-                    # Extraction budget idéal
                     match = re.search(r"budget idéal de\s*([\d\s]+)\s*EUR", text, re.IGNORECASE)
                     if match:
                         budget_str = match.group(1).replace(" ", "")
@@ -71,9 +67,7 @@ def extract_info(pdf_path):
         print(f"Erreur générale lors de l'extraction PDF: {e}")
         return None
 
-
 def analyze_report(pdf_hash, infos):
-    # On conserve la même logique de cache
     if pdf_hash in cache:
         return cache[pdf_hash]
 
@@ -81,253 +75,103 @@ def analyze_report(pdf_hash, infos):
     Analyse les critères de recherche suivants et renvoie-les au format JSON:
     {json.dumps(infos)}
     """
-
     try:
-        # On garde openai.Chat.create (nouvelle API)
-        response = openai.Chat.create(
+        response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a helpful real estate report analyzer."},
                 {"role": "user", "content": prompt},
             ]
         )
-        result = response.choices[0].message["content"].strip()
+        result = response.choices[0].message.content.strip()
         try:
             criteria = json.loads(result)
             cache[pdf_hash] = criteria
             return criteria
         except json.JSONDecodeError as e:
-            print(f"Erreur JSON: {e}, Résultat OpenAI: {result}")
+            print(f"Erreur JSON: {e}, Resultat OpenAI: {result}")
             return None
     except Exception as e:
         print(f"Erreur OpenAI: {e}")
         return None
 
+def scrape_leboncoin(criteria, limit=5):
+    url = "https://www.leboncoin.fr/recherche"
+    params = {
+        "category": "ventes_immobilieres",
+        "location": criteria.get("location", ""),
+        "price_min": criteria.get("budget_min", ""),
+        "price_max": criteria.get("budget_max", ""),
+    }
 
-# -----------------------------------------------------------------------------------
-# SCRAPERS (remplacement de l'ancien scrape_leboncoin par 4 scrapers + agrégateur)
-# -----------------------------------------------------------------------------------
+    user_agents = [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+        # ... d'autres User-Agents (ajoutez-en plusieurs)
+    ]
 
-def scrape_bienici(criteria, limit=5):
-    """
-    Scraper (ou appel API) de Bien'ici, exemple JSON + param filters.
-    À adapter selon la structure réelle actuelle.
-    """
-    results = []
+    proxies_list = [  # Liste de vos proxies
+        {"url": "http://user1:password@proxy1_ip:port"},  # Exemple
+        {"url": "http://user2:password@proxy2_ip:port"},  # Exemple
+        # ... d'autres proxies
+    ]
+
     try:
-        budget_max = criteria.get("budget", 400000)
-        surface_min = criteria.get("superficie", 40)
-        postcode = criteria.get("localisation", "75001")
+        user_agent = random.choice(user_agents)
 
-        filters_payload = {
-            "size": 24,
-            "from": 0,
-            "filters": {
-                "category": {"value": "buy"},
-                "locations": [
-                    {
-                        "type": "city",
-                        "postalCode": str(postcode)
-                    }
-                ],
-                "price": {"max": int(budget_max)},
-                "livingArea": {"min": int(surface_min)}
-            }
-        }
+        proxy_data = random.choice(proxies_list)
+        proxy_url = proxy_data["url"]
 
-        base_url = "https://api.bienici.com/api/v1/realEstateAds"
-        params = {"filters": json.dumps(filters_payload)}
-        headers = {"User-Agent": "Mozilla/5.0"}
+        # Encodage des caractères spéciaux dans l'URL du proxy
+        try:  # si user et password
+            username, password_host = proxy_url.split("@")
+            username = quote(username.split("//")[1].split(":")[0])  # extraction user
+            password, host = password_host.split(":")
+            password = quote(password)
+            proxy_url = f"http://{username}:{password}@{host}"
+        except:  # sinon juste l'host et le port
+            pass
 
-        resp = requests.get(base_url, params=params, headers=headers)
-        resp.raise_for_status()
-        data = resp.json()
+        proxies = {"http": proxy_url, "https": proxy_url}
 
-        ads = data.get("realEstateAds", [])
-        for i, ad in enumerate(ads):
-            if i >= limit:
-                break
-            title = ad.get("title", "N/A")
-            price = ad.get("price", {}).get("value", "N/A")
-            link = "https://www.bienici.com/annonce/" + str(ad.get("id", ""))
-            results.append({
-                "site": "Bienici",
-                "title": title,
-                "price": price,
-                "link": link
-            })
+        headers = {"User-Agent": user_agent}
 
-        time.sleep(random.uniform(2, 4))
+        response = requests.get(url, params=params, headers=headers, proxies=proxies)
+        response.raise_for_status()
 
-    except Exception as e:
-        print(f"Erreur scraping Bienici: {e}")
-        results.append({"error": f"Bienici: {str(e)}"})
-    return results
+        soup = BeautifulSoup(response.text, "html.parser")
+        results = []
 
-
-def scrape_century21(criteria, limit=5):
-    """
-    Scraper HTML sur Century21.fr, exemple GET avec params (transaction=, ville=, etc.)
-    """
-    results = []
-    try:
-        base_url = "https://www.century21.fr/trouver_logement/resultat/"
-        ville = criteria.get("localisation", "paris")
-        budget_max = criteria.get("budget", 300000)
-        surface_min = criteria.get("superficie", 40)
-
-        params = {
-            "transaction": "acheter",
-            "ville": ville,
-            "prix_max": budget_max,
-            "surface_min": surface_min
-        }
-        headers = {"User-Agent": "Mozilla/5.0"}
-        r = requests.get(base_url, params=params, headers=headers)
-        r.raise_for_status()
-        soup = BeautifulSoup(r.text, "html.parser")
-
-        annonces = soup.find_all("div", class_="annonce-item")
+        annonces = soup.find_all("li", class_="ad-list-item")
         for i, annonce in enumerate(annonces):
             if i >= limit:
                 break
 
-            title_el = annonce.find("h2", class_="annonce-title")
-            price_el = annonce.find("span", class_="annonce-price")
-            link_el = annonce.find("a", class_="annonce-link")
+            title = annonce.find("a", class_="ad-list-item__title")
+            price = annonce.find("span", class_="ad-list-item__price")
+            link = annonce.find("a", class_="ad-list-item__title")
 
-            title = title_el.get_text(strip=True) if title_el else "N/A"
-            price = price_el.get_text(strip=True) if price_el else "N/A"
-            link = link_el["href"] if (link_el and link_el.has_attr("href")) else "#"
-
-            results.append({
-                "site": "Century21",
-                "title": title,
-                "price": price,
-                "link": link
-            })
-
-        time.sleep(random.uniform(2, 4))
-
-    except Exception as e:
-        print(f"Erreur scraping Century21: {e}")
-        results.append({"error": f"Century21: {str(e)}"})
-    return results
-
-
-def scrape_seloger(criteria, limit=5):
-    """
-    Exemple d'API SeLoger (endpoint fictif, à adapter).
-    """
-    results = []
-    try:
-        base_url = "https://api-seloger.com/api/v1/listings/search"
-        budget_max = criteria.get("budget", 300000)
-        surface_min = criteria.get("superficie", 40)
-        ville = criteria.get("localisation", "75001")  # code postal ?
-
-        payload = {
-            "pageIndex": 1,
-            "pageSize": limit,
-            "realtyTypes": [1, 2],
-            "transactionType": 2,  # 2 = vente
-            "price": {"max": budget_max},
-            "livingArea": {"min": surface_min},
-            "zipCodes": [ville]
-        }
-        headers = {
-            "User-Agent": "Mozilla/5.0",
-            "Content-Type": "application/json"
-        }
-        r = requests.post(base_url, headers=headers, data=json.dumps(payload))
-        r.raise_for_status()
-        data = r.json()
-
-        items = data.get("items", [])
-        for item in items:
-            title = item.get("title", "N/A")
-            price = item.get("price", {}).get("amount", "N/A")
-            link = item.get("permalink", "#")
-
-            results.append({
-                "site": "SeLoger",
-                "title": title,
-                "price": price,
-                "link": link
-            })
-
-        time.sleep(random.uniform(2, 4))
-
-    except Exception as e:
-        print(f"Erreur scraping SeLoger: {e}")
-        results.append({"error": f"SeLoger: {str(e)}"})
-    return results
-
-
-def scrape_pap(criteria, limit=5):
-    """
-    Scraper HTML sur PAP.fr, exemple URL slug /vente-appartements-paris-75-g439
-    """
-    results = []
-    try:
-        base_url = "https://www.pap.fr/annonce/vente-appartements"
-        ville = criteria.get("localisation", "paris").lower().replace(" ", "-")
-        # Simplification: pour Paris => '-75-g439', pour Nice => '-06-g21067', etc.
-        slug = f"{ville}-75-g439"
-        url = f"{base_url}-{slug}"
-
-        headers = {"User-Agent": "Mozilla/5.0"}
-        r = requests.get(url, headers=headers)
-        r.raise_for_status()
-        soup = BeautifulSoup(r.text, "html.parser")
-
-        annonces = soup.find_all("div", class_="search-list-item")
-        count = 0
-        for annonce in annonces:
-            if count >= limit:
-                break
-            title_el = annonce.find("h3", class_="item-title")
-            price_el = annonce.find("h4", class_="item-price")
-            link_el = annonce.find("a", class_="item-title")
-
-            if title_el and price_el and link_el:
-                title = title_el.get_text(strip=True)
-                price = price_el.get_text(strip=True)
-                link = link_el["href"]
-                if link.startswith("/"):
-                    link = "https://www.pap.fr" + link
-
+            if title and price and link:
                 results.append({
-                    "site": "PAP",
-                    "title": title,
-                    "price": price,
-                    "link": link
+                    "title": title.text.strip(),
+                    "price": price.text.strip(),
+                    "link": "https://www.leboncoin.fr" + link["href"] if link.has_attr("href") else ""
                 })
-                count += 1
 
-        time.sleep(random.uniform(2, 4))
+        if not results:
+            return [{"error": "Aucune annonce trouvée"}]
 
+        time.sleep(random.uniform(2, 5))
+        return results
+
+    except requests.exceptions.RequestException as e:
+        print(f"Erreur scraping: {e}")
+        return [{"error": str(e)}]
+    except AttributeError as e:
+        return [{"error": "Éléments non trouvés sur la page (Leboncoin a peut-être changé son code): " + str(e)}]
     except Exception as e:
-        print(f"Erreur scraping PAP: {e}")
-        results.append({"error": f"PAP: {str(e)}"})
-    return results
+        print(f"Erreur scraping générale: {e}")
+        return [{"error": "Erreur inconnue lors du scraping"}]
 
-
-def scrape_all_sites(criteria, limit=5):
-    """
-    Regroupe les 4 scrapers dans une seule fonction.
-    """
-    results = []
-    results.extend(scrape_bienici(criteria, limit))
-    results.extend(scrape_century21(criteria, limit))
-    results.extend(scrape_seloger(criteria, limit))
-    results.extend(scrape_pap(criteria, limit))
-    return results
-
-
-# -----------------------------------------------------------------------------------
-# ROUTES FLASK
-# -----------------------------------------------------------------------------------
 
 @app.route('/upload_pdf', methods=['POST'])
 def upload_pdf():
@@ -354,8 +198,7 @@ def upload_pdf():
         if not criteria:
             return jsonify({"error": "Erreur lors de l'analyse du rapport"}), 500
 
-        # Appel de la nouvelle fonction: on scrape Bienici, Century21, SeLoger, PAP
-        results = scrape_all_sites(criteria, limit=5)
+        results = scrape_leboncoin(criteria, limit=5)
 
         return jsonify({"criteria": criteria, "results": results}), 200
 
