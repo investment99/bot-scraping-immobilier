@@ -54,14 +54,6 @@ def extract_info(pdf_path):
                     elif "centre-ville" in text.lower() or "promenade des anglais" in text.lower():
                         info["localisation"] = "centre-ville" if "centre-ville" in text.lower() else "Promenade des Anglais"
 
-                    # Pour la démo, on mappe "centre-ville" => "nice"
-                    # ou "promenade des Anglais" => "nice" si vous voulez
-                    if "localisation" in info:
-                        if info["localisation"].lower() in ["centre-ville", "promenade des anglais"]:
-                            info["ville"] = "nice"
-                        else:
-                            info["ville"] = "nice"  # fallback
-
                     # Extraction budget idéal
                     match = re.search(r"budget idéal de\s*([\d\s]+)\s*EUR", text, re.IGNORECASE)
                     if match:
@@ -76,7 +68,6 @@ def extract_info(pdf_path):
     except Exception as e:
         print(f"Erreur générale lors de l'extraction PDF: {e}")
         return None
-
 
 def analyze_report(pdf_hash, infos):
     if pdf_hash in cache:
@@ -106,11 +97,11 @@ def analyze_report(pdf_hash, infos):
         print(f"Erreur OpenAI: {e}")
         return None
 
-
 def parse_price_to_int(price_str):
     try:
         cleaned = (
-            price_str.replace("€", "")
+            price_str
+            .replace("€", "")
             .replace(",", "")
             .replace(" ", "")
             .strip()
@@ -119,24 +110,20 @@ def parse_price_to_int(price_str):
     except:
         return None
 
-
 def scrape_annonces(criteria, limit=5):
     """
-    Scrape plusieurs sites en fonction des 'sources' fournies dans 'criteria'.
-    Ex: criteria["sources"] = "bienici, century21"
+    Scrape uniquement Century21 (la partie Bien'ici est retirée).
     """
     annonces = []
 
     # --- Century 21 ---
     if "century21" in criteria.get("sources", "").lower():
         try:
-            # On récupère la ville depuis criteria, si elle existe, sinon "nice" en fallback
             ville = criteria.get("ville", "nice")
+            max_pages = 3  # Exemple : on boucle sur 3 pages
 
-            # On boucle sur plusieurs pages pour récupérer plus d'annonces
-            max_pages = 3  # ex. 3 pages
             for page_num in range(1, max_pages + 1):
-                # Exemple d'URL, à adapter selon la pagination
+                # URL paramétrée pour la ville + pagination
                 url_century21 = (
                     f"https://www.century21.fr/annonces/f/achat/v-{ville}/"
                     f"d-06_alpes_maritimes/page-{page_num}/?cible=d-06_alpes_maritimes"
@@ -148,40 +135,49 @@ def scrape_annonces(criteria, limit=5):
                 resp_c21.raise_for_status()
 
                 soup_c21 = BeautifulSoup(resp_c21.text, "html.parser")
-                blocks = soup_c21.find_all("div", class_="c-the-property-thumbnail-with-content__col-right")
+
+                blocks = soup_c21.find_all("div", class_="c-the-property-thumbnail-with-content")
                 if not blocks:
                     break  # plus de pages ?
 
                 for block in blocks:
-                    info_el = block.find("div", class_="c-text-theme-heading-4")
-                    info_text = info_el.get_text(strip=True) if info_el else ""
+                    right_part = block.find("div", class_="c-the-property-thumbnail-with-content__col-right")
+                    if not right_part:
+                        continue
+
+                    zone_info_el = right_part.find("div", class_="c-text-theme-heading-4")
+                    zone_info_text = zone_info_el.get_text(strip=True) if zone_info_el else ""
 
                     surface, pieces = None, None
-                    match_sp = re.search(r"(\d+)\s*m².*?(\d+)\s*pièces", info_text)
+                    match_sp = re.search(r"(\d+)\s*m².*?(\d+)\s*pièces", zone_info_text)
                     if match_sp:
                         surface = int(match_sp.group(1))
                         pieces = int(match_sp.group(2))
 
-                    type_el = block.find("div", class_="c-text-theme-heading-3")
+                    type_el = right_part.find("div", class_="c-text-theme-heading-3")
                     property_type = type_el.get_text(strip=True) if type_el else None
 
-                    price_el = block.find("div", class_="c-text-theme-heading-1")
+                    price_el = right_part.find("div", class_="c-text-theme-heading-1")
                     price = price_el.get_text(strip=True) if price_el else None
 
-                    link_el = block.find("a", class_="c-the-button")
+                    link_el = right_part.find("a", class_="c-the-button")
                     link = None
                     if link_el and link_el.has_attr("href"):
                         link = link_el["href"]
                         if link.startswith("/"):
                             link = "https://www.century21.fr" + link
 
+                    desc_el = right_part.find("div", class_="c-text-theme-base")
+                    description = desc_el.get_text(strip=True) if desc_el else None
+
                     annonces.append({
-                        "info_complet": info_text,
+                        "info_complet": zone_info_text,
                         "surface": surface,
                         "pieces": pieces,
                         "type_de_bien": property_type,
                         "price": price,
                         "link": link,
+                        "description": description,
                         "source": "Century21"
                     })
 
@@ -192,37 +188,10 @@ def scrape_annonces(criteria, limit=5):
             print(f"Erreur parsing Century 21: {e}")
             traceback.print_exc()
 
-    # --- Bien'ici (inchangé) ---
-    if "bienici" in criteria.get("sources", "").lower():
-        try:
-            url_bienici = "https://www.bienici.com/recherche/location/appartement/nice"  # Exemple d'URL, à adapter
-            response_bienici = requests.get(url_bienici)
-            response_bienici.raise_for_status()
-            soup_bienici = BeautifulSoup(response_bienici.content, "html.parser")
-
-            for annonce_bienici in soup_bienici.find_all("a", class_="search-result-card"):
-                title_bienici = annonce_bienici.find("h2")
-                price_bienici = annonce_bienici.find("span", class_="price")
-                link_bienici = annonce_bienici.get("href")
-
-                if title_bienici and price_bienici and link_bienici:
-                    annonces.append({
-                        "title": title_bienici.text.strip(),
-                        "price": price_bienici.text.strip(),
-                        "link": "https://www.bienici.com" + link_bienici,
-                        "source": "Bien'ici"
-                    })
-        except requests.exceptions.RequestException as e:
-            print(f"Erreur scraping Bien'ici (requête): {e}")
-            traceback.print_exc()
-        except AttributeError as e:
-            print(f"Erreur parsing Bien'ici: {e}")
-            traceback.print_exc()
-
     if not annonces:
-        return [{"error": "Aucune annonce trouvée sur les sites spécifiés"}]
+        return [{"error": "Aucune annonce trouvée sur Century21"}]
 
-    # Filtrage local final (inchangé)
+    # Filtrage local final, si nécessaire
     filtered = []
     bmin = criteria.get("budget_min")
     bmax = criteria.get("budget_max")
@@ -265,7 +234,7 @@ def upload_pdf():
         if not criteria:
             return jsonify({"error": "Erreur lors de l'analyse du rapport"}), 500
 
-        # Élargir
+        # Exemple d'élargissement
         if "superficie" in criteria:
             surf = criteria["superficie"]
             criteria["surface_min"] = max(0, surf - 10)
@@ -276,10 +245,11 @@ def upload_pdf():
             criteria["budget_min"] = budg
             criteria["budget_max"] = budg + 200000
 
+        # Si "sources" n'est pas dans criteria, on met "century21"
         if "sources" not in criteria:
-            criteria["sources"] = "bienici, century21"
+            criteria["sources"] = "century21"
 
-        # Si "ville" n'est pas dans criteria, fallback "nice"
+        # Si "ville" n'est pas présent, fallback
         if "ville" not in criteria:
             criteria["ville"] = "nice"
 
