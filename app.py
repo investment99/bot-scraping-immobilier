@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS  # 🟢 Importation pour gérer les requêtes CORS
 import openai
 import os
 from dotenv import load_dotenv
@@ -8,6 +9,9 @@ import traceback
 load_dotenv()
 
 app = Flask(__name__)
+
+# 🟢 Activer CORS uniquement pour ton site WordPress
+CORS(app, origins=["https://p-i-investment.com"])
 
 print("🚀 Lancement de l'application Flask...")
 
