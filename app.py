@@ -19,88 +19,92 @@ openai.api_key = OPENAI_API_KEY
 cache = {}
 
 def extract_info(pdf_path):
+    """Extrait les informations du PDF en ignorant les 4 premières pages"""
     try:
         with pdfplumber.open(pdf_path) as pdf:
-            if not pdf.pages:
-                print("Erreur: PDF vide")
+            if len(pdf.pages) <= 4:
+                print("Erreur: Le PDF contient moins de 5 pages.")
                 return None
 
             info = {}
-            for i, page in enumerate(pdf.pages):
-                if i < 4:
-                    continue
+            full_text = "\n".join([page.extract_text() for page in pdf.pages[4:] if page.extract_text()])
 
-                text = page.extract_text()
-                if text:
-                    match = re.search(r"Type de bien\s*:\s*(.*)", text)
-                    if match:
-                        info["type_de_bien"] = match.group(1).strip()
+            # Extraction des informations via regex
+            type_match = re.search(r"Type de bien\s*:\s*(.*)", full_text)
+            if type_match:
+                info["type_de_bien"] = type_match.group(1).strip()
 
-                    match = re.search(r"superficie habitable de\s*(\d+)\s*m²", text, re.IGNORECASE)
-                    if match:
-                        info["superficie"] = int(match.group(1))
+            superficie_match = re.search(r"superficie habitable de\s*(\d+)\s*m²", full_text, re.IGNORECASE)
+            if superficie_match:
+                info["superficie"] = int(superficie_match.group(1))
 
-                    match = re.search(r"(centre-ville|Promenade des Anglais)", text, re.IGNORECASE)
-                    if match:
-                        info["localisation"] = match.group(1).strip()
-                    elif "centre-ville" in text.lower() or "promenade des anglais" in text.lower():
-                        info["localisation"] = "centre-ville" if "centre-ville" in text.lower() else "Promenade des Anglais"
+            localisation_match = re.search(r"(centre-ville|Promenade des Anglais)", full_text, re.IGNORECASE)
+            if localisation_match:
+                info["localisation"] = localisation_match.group(1).strip()
 
-                    match = re.search(r"budget idéal de\s*([\d\s]+)\s*EUR", text, re.IGNORECASE)
-                    if match:
-                        budget_str = match.group(1).replace(" ", "")
-                        try:
-                            info["budget"] = int(budget_str)
-                        except ValueError:
-                            print("Erreur: Budget non trouvé ou mal formaté")
+            budget_match = re.search(r"budget idéal de\s*([\d\s]+)\s*EUR", full_text, re.IGNORECASE)
+            if budget_match:
+                budget_str = budget_match.group(1).replace(" ", "")
+                try:
+                    info["budget"] = int(budget_str)
+                except ValueError:
+                    print("Erreur: Budget mal formaté")
 
-            return info
+            return info if info else None
 
     except Exception as e:
-        print(f"Erreur générale lors de l'extraction PDF: {e}")
+        print(f"Erreur d'extraction PDF: {e}")
         return None
 
+
 def analyze_report(pdf_hash, infos):
+    """Utilise OpenAI pour générer des annonces basées sur les critères extraits"""
     if pdf_hash in cache:
         return cache[pdf_hash]
 
     prompt = f"""
-    Analyse les critères de recherche immobiliers suivants :
-    {json.dumps(infos)}
-    
-    Basé sur ces critères, génère 5 suggestions d'annonces immobilières fictives avec les informations suivantes pour chaque annonce :
-    - Type de bien
-    - Surface
-    - Nombre de pièces
-    - Prix
-    - Localisation
-    - Description courte
-    - Un lien fictif vers l'annonce
+    Basé sur les critères suivants extraits d'un PDF:
+    {json.dumps(infos, indent=2)}
 
-    Renvoie le résultat au format JSON.
+    Génère 5 annonces immobilières fictives contenant:
+    - Type de bien
+    - Surface (m²)
+    - Nombre de pièces
+    - Prix (en €)
+    - Localisation
+    - Une description courte
+    - Un lien fictif (ex: "https://annonce-immobiliere-fictive.com/annonce1")
+
+    Répond uniquement avec du JSON strictement formaté.
     """
+
     try:
-        response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are a helpful real estate assistant."},
-                {"role": "user", "content": prompt},
+                {"role": "system", "content": "Tu es un assistant spécialisé en immobilier."},
+                {"role": "user", "content": prompt}
             ]
         )
-        result = response.choices[0].message.content.strip()
+
+        raw_result = response["choices"][0]["message"]["content"].strip()
+
         try:
-            suggestions = json.loads(result)
+            suggestions = json.loads(raw_result)
             cache[pdf_hash] = suggestions
             return suggestions
-        except json.JSONDecodeError as e:
-            print(f"Erreur JSON: {e}, Résultat OpenAI: {result}")
+        except json.JSONDecodeError:
+            print(f"Erreur JSON : {raw_result}")
             return None
+
     except Exception as e:
-        print(f"Erreur OpenAI: {e}")
+        print(f"Erreur OpenAI : {e}")
         return None
+
 
 @app.route('/upload_pdf', methods=['POST'])
 def upload_pdf():
+    """API permettant d'envoyer un PDF et de recevoir des annonces générées"""
     if 'file' not in request.files:
         return jsonify({"error": "No file provided"}), 400
 
@@ -118,25 +122,27 @@ def upload_pdf():
 
         relevant_info = extract_info(file_path)
         if not relevant_info:
-            return jsonify({"error": "Erreur lors de l'extraction des infos du PDF"}), 500
+            return jsonify({"error": "Impossible d'extraire des informations du PDF"}), 500
 
         suggestions = analyze_report(file_hash, relevant_info)
         if not suggestions:
-            return jsonify({"error": "Erreur lors de l'analyse du rapport"}), 500
+            return jsonify({"error": "Problème lors de la génération des annonces"}), 500
 
         return jsonify({"criteria": relevant_info, "suggestions": suggestions}), 200
 
     except Exception as e:
-        print(f"Erreur générale: {e}")
+        print(f"Erreur : {e}")
         traceback.print_exc()
-        return jsonify({"error": "An error occurred during PDF processing: " + str(e)}), 500
+        return jsonify({"error": "Une erreur s'est produite: " + str(e)}), 500
 
     finally:
         os.remove(file_path)
 
+
 @app.route('/')
 def home():
-    return "API Flask fonctionne correctement !"
+    return "✅ API Flask fonctionne correctement !"
+
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
