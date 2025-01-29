@@ -86,17 +86,16 @@ def search_real_estate():
         raw_result = response.choices[0].message.content.strip()
         print(f"🧠 Réponse brute OpenAI : {raw_result}")
 
-        # Vérifier et corriger JSON si nécessaire
-        try:
-            suggestions = json.loads(raw_result)
-            print(f"✅ OpenAI a généré {len(suggestions)} annonces.")
-            return jsonify({"suggestions": suggestions}), 200
-        except json.JSONDecodeError:
-            print(f"❌ Erreur JSON OpenAI : {raw_result}")
+        # Vérifier si la réponse est bien sous forme de texte
+        if raw_result:
+            print(f"✅ Réponse OpenAI reçue.")
+            return jsonify({"suggestions": raw_result}), 200
+        else:
+            print("❌ Erreur : La réponse d'OpenAI est vide.")
             return jsonify({"error": "Erreur lors de la génération des annonces"}), 500
 
     except Exception as e:
-        print(f"❌ Erreur générale : {e}")
+        print(f"❌ Erreur générale dans /search_real_estate : {e}")
         traceback.print_exc()
         return jsonify({"error": f"Une erreur s'est produite: {str(e)}"}), 500
 
