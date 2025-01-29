@@ -111,7 +111,7 @@ def scrape_annonces(criteria, limit=5):
     # --- Century 21 ---
     if "century21" in criteria.get("sources", "").lower():
         try:
-            url_century21 = "https://www.century21.fr/annonces/vente-maison-nice-06000/"  # Exemple d'URL, à adapter
+            url_century21 = "https://www.century21.fr/acheter/"  # Exemple d'URL, à adapter
             response_century21 = requests.get(url_century21)
             response_century21.raise_for_status()
             soup_century21 = BeautifulSoup(response_century21.content, "html.parser")
