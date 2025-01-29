@@ -68,7 +68,12 @@ def search_real_estate():
         - Une description courte
         - Un lien fictif (ex: "https://annonce-immobiliere-fictive.com/annonce1")
 
-        Répond uniquement avec du JSON strictement formaté.
+        Répond uniquement avec du texte brut, formaté comme suit :
+        - Annonce 1 : [Description] (Lien)
+        - Annonce 2 : [Description] (Lien)
+        - Annonce 3 : [Description] (Lien)
+        - Annonce 4 : [Description] (Lien)
+        - Annonce 5 : [Description] (Lien)
         """
 
         print("📡 Envoi du prompt à OpenAI...")
