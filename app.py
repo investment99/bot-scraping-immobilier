@@ -216,7 +216,7 @@ def upload_pdf():
         if not criteria:
             return jsonify({"error": "Erreur lors de l'analyse du rapport"}), 500
 
-        results = scrape_leboncoin(criteria, limit=5)
+        results = results = scrape_annonces(criteria, limit=5)
 
         return jsonify({"criteria": criteria, "results": results}), 200
 
