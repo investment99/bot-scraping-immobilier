@@ -51,7 +51,7 @@ def extract_info(pdf_path):
                     match = re.search(r"(centre-ville|Promenade des Anglais)", text, re.IGNORECASE)
                     if match:
                         info["localisation"] = match.group(1).strip()
-                    elif "centre-ville" in text.lower() or "Promenade des anglais" in text.lower():
+                    elif "centre-ville" in text.lower() or "promenade des anglais" in text.lower():
                         info["localisation"] = "centre-ville" if "centre-ville" in text.lower() else "Promenade des Anglais"
 
                     # Extraction budget idéal
@@ -99,6 +99,25 @@ def analyze_report(pdf_hash, infos):
 
     except Exception as e:
         print(f"Erreur OpenAI: {e}")
+        return None
+
+
+# ----------------------------------------------------------------
+# BLOC B : Filtrage local après scraping (avant return)
+# ----------------------------------------------------------------
+def parse_price_to_int(price_str):
+    """
+    Essaie d'extraire un entier depuis une chaîne de type '420 000 €' ou '420000'.
+    Retourne None en cas d'échec.
+    """
+    try:
+        cleaned = (price_str
+                   .replace("€", "")
+                   .replace(",", "")
+                   .replace(" ", "")
+                   .strip())
+        return int(cleaned)
+    except:
         return None
 
 def scrape_annonces(criteria, limit=5):
@@ -162,13 +181,40 @@ def scrape_annonces(criteria, limit=5):
             print(f"Erreur parsing Bien'ici: {e}")
             traceback.print_exc()
 
-    # On peut ajouter d'autres sites (SeLoger, PAP, etc.) si besoin.
-
     if not annonces:
         return [{"error": "Aucune annonce trouvée sur les sites spécifiés"}]
 
-    # Sinon, on retourne la liste partielle (limit).
-    return annonces[:limit]
+    # ----------------------
+    # Filtrage local
+    # ----------------------
+    filtered = []
+    bmin = criteria.get("budget_min")
+    bmax = criteria.get("budget_max")
+    smin = criteria.get("surface_min")
+    smax = criteria.get("surface_max")
+
+    # Si vous ne récupérez pas la surface dans 'annonces', le filtrage de surface ne fera rien
+    # On fait un exemple minimal pour le prix.
+    for a in annonces:
+        p = parse_price_to_int(a.get("price", ""))
+        if p is not None and bmin is not None and bmax is not None:
+            if p < bmin or p > bmax:
+                # On exclut cette annonce
+                continue
+
+        # Pour la surface, il faudrait d'abord extraire la surface du code HTML (non fait ici).
+        # if smin is not None and smax is not None and "surface" in a:
+        #     surf = a["surface"]
+        #     if surf < smin or surf > smax:
+        #         continue
+
+        filtered.append(a)
+
+    if not filtered:
+        return [{"error": "Aucune annonce ne correspond aux critères élargis"}]
+
+    return filtered[:limit]
+
 
 @app.route('/upload_pdf', methods=['POST'])
 def upload_pdf():
@@ -196,9 +242,22 @@ def upload_pdf():
         if not criteria:
             return jsonify({"error": "Erreur lors de l'analyse du rapport"}), 500
 
+        # ----------------------------------------------------------------
+        # BLOC A : ÉLARGIR CRITÈRES (budget, surface) AVANT scraping
+        # ----------------------------------------------------------------
+        if "superficie" in criteria:
+            surf = criteria["superficie"]
+            # Par ex : -10 / +20
+            criteria["surface_min"] = max(0, surf - 10)
+            criteria["surface_max"] = surf + 20
+
+        if "budget" in criteria:
+            budg = criteria["budget"]
+            # Ex : min = budg, max = budg + 200000
+            criteria["budget_min"] = budg
+            criteria["budget_max"] = budg + 200000
+
         # Par exemple, si vous voulez préciser quelles "sources" scraper :
-        # Ajoutez "sources" dans le dict criteria, ex. criteria["sources"] = "bienici, century21"
-        # Ou ChatGPT peut déjà renvoyer cette info. Sinon, fixez une valeur par défaut:
         if "sources" not in criteria:
             criteria["sources"] = "bienici, century21"
 
