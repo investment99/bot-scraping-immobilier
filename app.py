@@ -54,6 +54,14 @@ def extract_info(pdf_path):
                     elif "centre-ville" in text.lower() or "promenade des anglais" in text.lower():
                         info["localisation"] = "centre-ville" if "centre-ville" in text.lower() else "Promenade des Anglais"
 
+                    # Pour la démo, on mappe "centre-ville" => "nice"
+                    # ou "promenade des Anglais" => "nice" si vous voulez
+                    if "localisation" in info:
+                        if info["localisation"].lower() in ["centre-ville", "promenade des anglais"]:
+                            info["ville"] = "nice"
+                        else:
+                            info["ville"] = "nice"  # fallback
+
                     # Extraction budget idéal
                     match = re.search(r"budget idéal de\s*([\d\s]+)\s*EUR", text, re.IGNORECASE)
                     if match:
@@ -69,6 +77,7 @@ def extract_info(pdf_path):
         print(f"Erreur générale lors de l'extraction PDF: {e}")
         return None
 
+
 def analyze_report(pdf_hash, infos):
     if pdf_hash in cache:
         return cache[pdf_hash]
@@ -77,7 +86,6 @@ def analyze_report(pdf_hash, infos):
     Analyse les critères de recherche suivants et renvoie-les au format JSON:
     {json.dumps(infos)}
     """
-
     try:
         response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
@@ -87,7 +95,6 @@ def analyze_report(pdf_hash, infos):
             ]
         )
         result = response.choices[0].message.content.strip()
-
         try:
             criteria = json.loads(result)
             cache[pdf_hash] = criteria
@@ -95,7 +102,6 @@ def analyze_report(pdf_hash, infos):
         except json.JSONDecodeError as e:
             print(f"Erreur JSON: {e}, Résultat OpenAI: {result}")
             return None
-
     except Exception as e:
         print(f"Erreur OpenAI: {e}")
         return None
@@ -103,14 +109,16 @@ def analyze_report(pdf_hash, infos):
 
 def parse_price_to_int(price_str):
     try:
-        cleaned = (price_str
-                   .replace("€", "")
-                   .replace(",", "")
-                   .replace(" ", "")
-                   .strip())
+        cleaned = (
+            price_str.replace("€", "")
+            .replace(",", "")
+            .replace(" ", "")
+            .strip()
+        )
         return int(cleaned)
     except:
         return None
+
 
 def scrape_annonces(criteria, limit=5):
     """
@@ -122,51 +130,60 @@ def scrape_annonces(criteria, limit=5):
     # --- Century 21 ---
     if "century21" in criteria.get("sources", "").lower():
         try:
-            # NOUVELLE URL
-            url_century21 = "https://www.century21.fr/annonces/f/achat/v-nice/d-06_alpes_maritimes/?cible=d-06_alpes_maritimes"
-            response_century21 = requests.get(url_century21)
-            response_century21.raise_for_status()
+            # On récupère la ville depuis criteria, si elle existe, sinon "nice" en fallback
+            ville = criteria.get("ville", "nice")
 
-            soup_century21 = BeautifulSoup(response_century21.content, "html.parser")
+            # On boucle sur plusieurs pages pour récupérer plus d'annonces
+            max_pages = 3  # ex. 3 pages
+            for page_num in range(1, max_pages + 1):
+                # Exemple d'URL, à adapter selon la pagination
+                url_century21 = (
+                    f"https://www.century21.fr/annonces/f/achat/v-{ville}/"
+                    f"d-06_alpes_maritimes/page-{page_num}/?cible=d-06_alpes_maritimes"
+                )
+                print("Scraping:", url_century21)
+                resp_c21 = requests.get(url_century21)
+                if resp_c21.status_code in [404, 410]:
+                    break
+                resp_c21.raise_for_status()
 
-            # On cible <div class="c-the-property-thumbnail-with-content__col-right">
-            blocks = soup_century21.find_all("div", class_="c-the-property-thumbnail-with-content__col-right")
+                soup_c21 = BeautifulSoup(resp_c21.text, "html.parser")
+                blocks = soup_c21.find_all("div", class_="c-the-property-thumbnail-with-content__col-right")
+                if not blocks:
+                    break  # plus de pages ?
 
-            for block in blocks:
-                # Récupération du bloc "NICE 06, 315 m², 10 pièces, etc."
-                info_el = block.find("div", class_="c-text-theme-heading-4")
-                info_text = info_el.get_text(strip=True) if info_el else ""
+                for block in blocks:
+                    info_el = block.find("div", class_="c-text-theme-heading-4")
+                    info_text = info_el.get_text(strip=True) if info_el else ""
 
-                surface, pieces = None, None
-                match_surface_pieces = re.search(r"(\d+)\s*m².*?(\d+)\s*pièces", info_text)
-                if match_surface_pieces:
-                    surface = int(match_surface_pieces.group(1))
-                    pieces = int(match_surface_pieces.group(2))
+                    surface, pieces = None, None
+                    match_sp = re.search(r"(\d+)\s*m².*?(\d+)\s*pièces", info_text)
+                    if match_sp:
+                        surface = int(match_sp.group(1))
+                        pieces = int(match_sp.group(2))
 
-                # Type de bien : "Maison à vendre" (c-text-theme-heading-3)
-                type_el = block.find("div", class_="c-text-theme-heading-3")
-                property_type = type_el.get_text(strip=True) if type_el else None
+                    type_el = block.find("div", class_="c-text-theme-heading-3")
+                    property_type = type_el.get_text(strip=True) if type_el else None
 
-                # Prix : dans c-text-theme-heading-1
-                price_el = block.find("div", class_="c-text-theme-heading-1")
-                price = price_el.get_text(strip=True) if price_el else None
+                    price_el = block.find("div", class_="c-text-theme-heading-1")
+                    price = price_el.get_text(strip=True) if price_el else None
 
-                # Lien : <a class="c-the-button" href="...">
-                link_el = block.find("a", class_="c-the-button")
-                link = None
-                if link_el and link_el.has_attr("href"):
-                    link = link_el["href"]
-                    if link.startswith("/"):
-                        link = "https://www.century21.fr" + link
+                    link_el = block.find("a", class_="c-the-button")
+                    link = None
+                    if link_el and link_el.has_attr("href"):
+                        link = link_el["href"]
+                        if link.startswith("/"):
+                            link = "https://www.century21.fr" + link
 
-                annonces.append({
-                    "info_complet": info_text,
-                    "surface": surface,
-                    "pieces": pieces,
-                    "type_de_bien": property_type,
-                    "price": price,
-                    "link": link
-                })
+                    annonces.append({
+                        "info_complet": info_text,
+                        "surface": surface,
+                        "pieces": pieces,
+                        "type_de_bien": property_type,
+                        "price": price,
+                        "link": link,
+                        "source": "Century21"
+                    })
 
         except requests.exceptions.RequestException as e:
             print(f"Erreur scraping Century 21 (requête): {e}")
@@ -175,7 +192,7 @@ def scrape_annonces(criteria, limit=5):
             print(f"Erreur parsing Century 21: {e}")
             traceback.print_exc()
 
-    # --- Bien'ici (reste inchangé) ---
+    # --- Bien'ici (inchangé) ---
     if "bienici" in criteria.get("sources", "").lower():
         try:
             url_bienici = "https://www.bienici.com/recherche/location/appartement/nice"  # Exemple d'URL, à adapter
@@ -261,6 +278,10 @@ def upload_pdf():
 
         if "sources" not in criteria:
             criteria["sources"] = "bienici, century21"
+
+        # Si "ville" n'est pas dans criteria, fallback "nice"
+        if "ville" not in criteria:
+            criteria["ville"] = "nice"
 
         results = scrape_annonces(criteria, limit=5)
 
