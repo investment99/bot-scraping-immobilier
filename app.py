@@ -61,9 +61,9 @@ def search_real_estate():
 
         print("📡 Envoi du prompt à OpenAI...")
 
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}]
+        rresponse = openai.chat.completions.create(
+    model="gpt-4",
+    messages=[{"role": "user", "content": prompt}]
         )
 
         raw_result = response["choices"][0]["message"]["content"].strip()
