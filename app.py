@@ -68,7 +68,7 @@ def analyze_report(pdf_hash, infos):
         return cache[pdf_hash]
 
     print(f"📡 Envoi des critères à OpenAI : {infos}")
-    
+
     prompt = f"""
     Basé sur les critères suivants extraits d'un PDF:
     {json.dumps(infos, indent=2)}
@@ -97,6 +97,7 @@ def analyze_report(pdf_hash, infos):
         raw_result = response["choices"][0]["message"]["content"].strip()
         print(f"🧠 Réponse brute OpenAI : {raw_result}")
 
+        # Vérifier si OpenAI retourne du JSON valide
         try:
             suggestions = json.loads(raw_result)
             cache[pdf_hash] = suggestions
@@ -104,7 +105,18 @@ def analyze_report(pdf_hash, infos):
             return suggestions
         except json.JSONDecodeError as json_err:
             print(f"❌ Erreur JSON OpenAI : {json_err}")
-            return None
+            print("🛠 Tentative de correction du JSON...")
+            # Tenter une correction manuelle
+            raw_result = raw_result.replace("\n", "").strip()
+            if raw_result.startswith("```json"):
+                raw_result = raw_result[7:-3]  # Suppression des balises ```json et ```
+            try:
+                suggestions = json.loads(raw_result)
+                cache[pdf_hash] = suggestions
+                return suggestions
+            except Exception as json_fix_err:
+                print(f"🚨 Correction échouée : {json_fix_err}")
+                return None
 
     except Exception as e:
         print(f"❌ Erreur OpenAI : {e}")
@@ -118,7 +130,7 @@ def upload_pdf():
     print("📩 Requête reçue sur /upload_pdf")
 
     if 'file' not in request.files:
-        print("❌ Aucune fichier reçu !")
+        print("❌ Aucun fichier reçu !")
         return jsonify({"error": "No file provided"}), 400
 
     file = request.files['file']
@@ -149,8 +161,11 @@ def upload_pdf():
             print("❌ Problème lors de la génération des annonces.")
             return jsonify({"error": "Problème lors de la génération des annonces"}), 500
 
-        print(f"✅ Réponse envoyée avec {len(suggestions)} suggestions.")
-        return jsonify({"criteria": relevant_info, "suggestions": suggestions}), 200
+        # Vérifier et afficher le JSON final
+        response_data = {"criteria": relevant_info, "suggestions": suggestions}
+        print("✅ JSON final envoyé :", json.dumps(response_data, indent=2))
+
+        return jsonify(response_data), 200
 
     except Exception as e:
         print(f"❌ Erreur générale : {e}")
