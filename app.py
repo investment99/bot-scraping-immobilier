@@ -1,9 +1,8 @@
 from flask import Flask, request, jsonify
-from flask_cors import CORS  # 🟢 Importation pour gérer les requêtes CORS
+from flask_cors import CORS  
 import openai
 import os
 from dotenv import load_dotenv
-import json
 import traceback
 
 load_dotenv()
@@ -28,74 +27,49 @@ def test():
 
 @app.route('/routes', methods=['GET'])
 def list_routes():
-    """Affiche toutes les routes disponibles pour voir si /search_real_estate est bien chargée."""
-    routes = []
-    for rule in app.url_map.iter_rules():
-        routes.append(str(rule))
+    """Affiche toutes les routes disponibles"""
+    routes = [str(rule) for rule in app.url_map.iter_rules()]
     return jsonify({"routes": routes})
 
-@app.route('/search_real_estate', methods=['POST'])
-def search_real_estate():
-    """Génère des annonces basées sur les critères envoyés par WordPress"""
+# 🟢 NOUVEAU ENDPOINT : GÉNÉRATION DE POSTS MARKETING
+@app.route('/generate_post', methods=['POST'])
+def generate_post():
+    """Génère un post marketing pour attirer des clients dans l'immobilier"""
     try:
         data = request.json
         if not data:
             return jsonify({"error": "❌ Aucune donnée reçue"}), 400
-        
-        print(f"📡 Recherche reçue : {data}")
 
-        # Vérifier si tous les champs sont présents
-        required_fields = ["city", "property_type", "surface_min", "surface_max", "price_min", "price_max"]
-        for field in required_fields:
-            if field not in data:
-                print(f"❌ Champ manquant : {field}")
-                return jsonify({"error": f"Champ {field} manquant"}), 400
+        client_type = data.get("client_type", "investisseur")  
+        ville = data.get("ville", "Paris")
 
-        # Création du prompt pour OpenAI
+        print(f"📡 Génération d'un post pour {client_type} à {ville}")
+
+        # Prompt OpenAI
         prompt = f"""
-        Je cherche des annonces immobilières avec ces critères :
-        - Ville : {data["city"]}
-        - Type : {data["property_type"]}
-        - Surface : entre {data["surface_min"]} et {data["surface_max"]} m²
-        - Budget : entre {data["price_min"]} et {data["price_max"]} €
+        Rédige un post attractif pour un {client_type} qui veut attirer des clients cherchant à investir dans l'immobilier à {ville}. 
+        - Ton professionnel mais engageant.
+        - Utilise des emojis pour rendre le post dynamique.
+        - Intègre un appel à l'action clair pour inciter à contacter.
+        - Ajoute une touche de storytelling si possible.
 
-        Génère 5 annonces fictives avec :
-        - Type
-        - Surface (m²)
-        - Nombre de pièces
-        - Prix (en €)
-        - Localisation
-        - Une description courte
-        - Un lien fictif (ex: "https://annonce-immobiliere-fictive.com/annonce1")
-
-        Répond uniquement avec du texte brut, formaté comme suit :
-        - Annonce 1 : [Description] (Lien)
-        - Annonce 2 : [Description] (Lien)
-        - Annonce 3 : [Description] (Lien)
-        - Annonce 4 : [Description] (Lien)
-        - Annonce 5 : [Description] (Lien)
+        Exemple :
+        📢 Vous cherchez à investir à {ville} ? Découvrez des opportunités rentables dès maintenant ! 🏡💰
         """
-
-        print("📡 Envoi du prompt à OpenAI...")
-
+        
         response = openai.chat.completions.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}]
         )
 
-        raw_result = response.choices[0].message.content.strip()
-        print(f"🧠 Réponse brute OpenAI : {raw_result}")
+        post_text = response.choices[0].message.content.strip()
 
-        # Vérifier si la réponse est bien sous forme de texte
-        if raw_result:
-            print(f"✅ Réponse OpenAI reçue.")
-            return jsonify({"suggestions": raw_result}), 200
-        else:
-            print("❌ Erreur : La réponse d'OpenAI est vide.")
-            return jsonify({"error": "Erreur lors de la génération des annonces"}), 500
+        print(f"🧠 Post généré : {post_text}")
+
+        return jsonify({"post": post_text}), 200
 
     except Exception as e:
-        print(f"❌ Erreur générale dans /search_real_estate : {e}")
+        print(f"❌ Erreur dans /generate_post : {e}")
         traceback.print_exc()
         return jsonify({"error": f"Une erreur s'est produite: {str(e)}"}), 500
 
