@@ -78,8 +78,8 @@ beautifulsoup4
 openai
 python-dotenv
 selenium
-webdriver-manager
-chromium
+webdriver-manager==4.0.1
+
 
 
 
