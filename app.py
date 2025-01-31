@@ -90,81 +90,23 @@ def upload_csv():
         traceback.print_exc()
         return jsonify({"error": f"Une erreur s'est produite: {str(e)}"}), 500
 
-# 📌 Route pour Analyser et Classer les Prospects avec OpenAI
-@app.route('/analyze_prospects', methods=['POST'])
-def analyze_prospects():
-    try:
-        conn = connect_db()
-        if not conn:
-            return jsonify({"error": "❌ Impossible de se connecter à la base de données"}), 500
-
-        cursor = conn.cursor()
-        cursor.execute("SELECT full_name, profile_url, job_title FROM linkedin_prospects")
-        prospects = cursor.fetchall()
-        cursor.close()
-        conn.close()
-
-        analyzed_prospects = []
-        for p in prospects:
-            response = openai.ChatCompletion.create(
-                model="gpt-4",
-                messages=[
-                    {"role": "system", "content": "Classifie ce prospect selon son potentiel d'investissement."},
-                    {"role": "user", "content": f"Nom: {p[0]}, Poste: {p[2]}. Est-il un bon investisseur ?"}
-                ]
-            )
-            classification = response['choices'][0]['message']['content']
-            analyzed_prospects.append({"nom": p[0], "linkedin": p[1], "poste": p[2], "classement": classification})
-
-        return jsonify(analyzed_prospects), 200
-
-    except Exception as e:
-        print(f"❌ Erreur dans /analyze_prospects : {e}")
-        traceback.print_exc()
-        return jsonify({"error": f"Une erreur s'est produite: {str(e)}"}), 500
-
-# 📌 Route pour Générer Automatiquement un Post avec OpenAI
-@app.route('/generate_post', methods=['POST'])
-def generate_post():
+# 📌 Route pour envoyer les données à Make.com via Webhook
+@app.route('/send_to_make', methods=['POST'])
+def send_to_make():
     try:
         data = request.get_json(force=True, silent=True)
-        topic = data.get("topic", "Investissement immobilier")
+        webhook_url = "https://hook.eu2.make.com/z60ssi7icgai6s9sjky51ckhcp3xtvtl"
 
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "Génère un post engageant sur le sujet donné."},
-                {"role": "user", "content": f"Crée un post pour les réseaux sociaux sur {topic}."}
-            ]
-        )
-        generated_post = response['choices'][0]['message']['content']
+        response = requests.post(webhook_url, json=data)
+        response.raise_for_status()
 
-        return jsonify({"post": generated_post}), 200
-
+        return jsonify({"message": "✅ Données envoyées avec succès à Make.com."}), 200
     except Exception as e:
-        print(f"❌ Erreur dans /generate_post : {e}")
+        print(f"❌ Erreur dans /send_to_make : {e}")
         traceback.print_exc()
         return jsonify({"error": f"Une erreur s'est produite: {str(e)}"}), 500
 
-# 📌 Route pour Déterminer la Meilleure Heure de Publication
-@app.route('/best_time_to_post', methods=['GET'])
-def best_time_to_post():
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "Analyse les meilleures heures pour publier sur les réseaux sociaux."},
-                {"role": "user", "content": "Quelle est la meilleure heure pour publier sur LinkedIn et Facebook ?"}
-            ]
-        )
-        best_time = response['choices'][0]['message']['content']
-
-        return jsonify({"best_time": best_time}), 200
-
-    except Exception as e:
-        print(f"❌ Erreur dans /best_time_to_post : {e}")
-        traceback.print_exc()
-        return jsonify({"error": f"Une erreur s'est produite: {str(e)}"}), 500
+# 📌 Autres routes déjà définies...
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
