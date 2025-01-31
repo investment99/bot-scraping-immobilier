@@ -41,29 +41,37 @@ def connect_db():
 # 📌 Installation de Chromium et ChromeDriver
 CHROMIUM_URL = "https://storage.googleapis.com/chrome-for-testing-public/121.0.6167.85/linux64/chrome-linux64.zip"
 CHROMEDRIVER_URL = "https://storage.googleapis.com/chrome-for-testing-public/121.0.6167.85/linux64/chromedriver-linux64.zip"
-CHROME_PATH = "/tmp/chrome-linux64/chrome"
-CHROMEDRIVER_PATH = "/tmp/chromedriver-linux64/chromedriver"
+CHROME_DIR = "/tmp/chrome-linux64"
+CHROMEDRIVER_DIR = "/tmp/chromedriver-linux64"
+CHROME_PATH = f"{CHROME_DIR}/chrome"
+CHROMEDRIVER_PATH = f"{CHROMEDRIVER_DIR}/chromedriver"
 
 def download_and_extract(url, extract_to):
-    """Télécharge et extrait un fichier ZIP."""
+    """Télécharge et extrait un fichier ZIP dans /tmp/."""
     zip_path = extract_to + ".zip"
+    print(f"🔽 Téléchargement de {url}...")
+    
     response = requests.get(url, stream=True)
     with open(zip_path, "wb") as f:
         for chunk in response.iter_content(chunk_size=128):
             f.write(chunk)
+    
     with zipfile.ZipFile(zip_path, "r") as zip_ref:
-        zip_ref.extractall("/tmp")
+        zip_ref.extractall("/tmp/")
+    
     os.chmod(extract_to, stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)  # Donner les permissions d'exécution
-    os.remove(zip_path)
+    os.remove(zip_path)  # Supprimer le fichier ZIP après extraction
 
 def setup_chromium():
-    """Télécharge Chromium et ChromeDriver si nécessaire."""
+    """Télécharge Chromium et ChromeDriver si nécessaire et corrige les chemins."""
     if not os.path.exists(CHROME_PATH):
-        print("🔽 Téléchargement de Chromium...")
+        print("🔽 Chromium non trouvé, téléchargement en cours...")
+        os.makedirs(CHROME_DIR, exist_ok=True)  # Assurer que le dossier existe
         download_and_extract(CHROMIUM_URL, CHROME_PATH)
 
     if not os.path.exists(CHROMEDRIVER_PATH):
-        print("🔽 Téléchargement de ChromeDriver...")
+        print("🔽 ChromeDriver non trouvé, téléchargement en cours...")
+        os.makedirs(CHROMEDRIVER_DIR, exist_ok=True)  # Assurer que le dossier existe
         download_and_extract(CHROMEDRIVER_URL, CHROMEDRIVER_PATH)
 
 # 📌 Route de test pour vérifier que Selenium fonctionne
