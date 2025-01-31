@@ -106,6 +106,7 @@ def scrape_with_selenium(forum_url):
 
         # Récupérer le HTML après acceptation des cookies
         page_source = driver.page_source
+        print("🔍 HTML récupéré :", page_source[:1000])  # Voir les 1000 premiers caractères du HTML
         driver.quit()
         return page_source
 
