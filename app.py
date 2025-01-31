@@ -40,11 +40,12 @@ def connect_db():
 # Fonction pour scraper avec Selenium (accepter les cookies)
 def scrape_with_selenium(forum_url):
     try:
-        # Télécharger ChromeDriver automatiquement sans ChromeType
+        # Télécharger Chromium et le bon ChromeDriver automatiquement
         chrome_driver_path = ChromeDriverManager().install()
 
-        # Configuration spécifique pour Render
+        # Configuration pour Chromium
         chrome_options = Options()
+        chrome_options.binary_location = "/usr/bin/chromium-browser"  # Utilisation de Chromium
         chrome_options.add_argument("--headless")  # Mode sans affichage
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--no-sandbox")
@@ -56,7 +57,7 @@ def scrape_with_selenium(forum_url):
         chrome_options.add_argument("--window-size=1920x1080")
         chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
 
-        # Lancer Chrome avec WebDriver Manager
+        # Lancer Chromium avec WebDriver Manager
         service = Service(chrome_driver_path)
         driver = webdriver.Chrome(service=service, options=chrome_options)
 
