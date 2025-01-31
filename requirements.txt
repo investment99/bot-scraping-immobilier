@@ -79,6 +79,11 @@ openai
 python-dotenv
 selenium
 webdriver-manager==4.0.1
+flask-cors
+requests
+openai
+psycopg2-binary
+python-dotenv
 
 
 
