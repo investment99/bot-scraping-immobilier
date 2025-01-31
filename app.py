@@ -40,20 +40,30 @@ def connect_db():
 # Fonction pour scraper avec Selenium (accepter les cookies)
 def scrape_with_selenium(forum_url):
     try:
+        # Configuration spécifique pour Render
         chrome_options = Options()
+        chrome_options.binary_location = "/usr/bin/chromium-browser"  # Chemin pour Render
         chrome_options.add_argument("--headless")  # Mode sans affichage
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument("--remote-debugging-port=9222")
+        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+        chrome_options.add_argument("--disable-infobars")
+        chrome_options.add_argument("--disable-popup-blocking")
+        chrome_options.add_argument("--window-size=1920x1080")
         chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
 
-        service = Service(ChromeDriverManager().install())
+        # Spécifier le bon chemin du WebDriver pour Render
+        service = Service("/usr/bin/chromedriver")
         driver = webdriver.Chrome(service=service, options=chrome_options)
+
+        print("✅ Selenium a démarré avec succès sur Render.")
 
         driver.get(forum_url)
         time.sleep(3)  # Attente du chargement de la page
 
-        # Chercher et cliquer sur le bouton "Accepter les cookies"
+        # Chercher et cliquer sur "Accepter les cookies"
         try:
             accept_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Accepter') or contains(text(), 'J'accepte') or contains(text(), 'OK')]")
             accept_button.click()
@@ -68,7 +78,7 @@ def scrape_with_selenium(forum_url):
         return page_source
 
     except Exception as e:
-        print(f"❌ Erreur Selenium: {str(e)}")
+        print(f"❌ Erreur Selenium sur Render: {str(e)}")
         return None
 
 # Scraping des groupes/forums pour identifier les prospects
