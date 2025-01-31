@@ -13,6 +13,7 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
+from webdriver_manager.core.utils import ChromeType
 import time
 
 load_dotenv()
@@ -40,9 +41,11 @@ def connect_db():
 # Fonction pour scraper avec Selenium (accepter les cookies)
 def scrape_with_selenium(forum_url):
     try:
+        # Télécharger Chromium et le bon ChromeDriver automatiquement
+        chrome_driver_path = ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install()
+
         # Configuration spécifique pour Render
         chrome_options = Options()
-        chrome_options.binary_location = "/usr/bin/chromium-browser"  # Chemin pour Render
         chrome_options.add_argument("--headless")  # Mode sans affichage
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--no-sandbox")
@@ -54,8 +57,8 @@ def scrape_with_selenium(forum_url):
         chrome_options.add_argument("--window-size=1920x1080")
         chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
 
-        # Spécifier le bon chemin du WebDriver pour Render
-        service = Service("/usr/bin/chromedriver")
+        # Lancer Chrome avec WebDriver Manager
+        service = Service(chrome_driver_path)
         driver = webdriver.Chrome(service=service, options=chrome_options)
 
         print("✅ Selenium a démarré avec succès sur Render.")
