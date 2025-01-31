@@ -7,13 +7,16 @@ from dotenv import load_dotenv
 import traceback
 import csv
 from googlesearch import search
+import openai
 
 load_dotenv()
 
 app = Flask(__name__)  # ✅ Définition de Flask ici
-
-# 🟢 Activer CORS uniquement pour ton site WordPress
 CORS(app, origins=["https://p-i-investment.com"])
+
+# 📌 Connexion à OpenAI
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+openai.api_key = OPENAI_API_KEY
 
 # 📌 Connexion à la base de données PostgreSQL
 def connect_db():
@@ -41,7 +44,6 @@ def search_google():
         if not query:
             return jsonify({"error": "❌ Aucun mot-clé fourni"}), 400
 
-        # Recherche sur Google (10 résultats max)
         results = list(search(query, num_results=10))
 
         return jsonify({"results": results}), 200
@@ -76,10 +78,8 @@ def upload_csv():
                 full_name, profile_url, job_title = row[:3]
                 prospects.append((full_name, profile_url, job_title))
 
-        # Insérer les prospects en base de données
         cursor.executemany("INSERT INTO linkedin_prospects (full_name, profile_url, job_title) VALUES (%s, %s, %s)", prospects)
         conn.commit()
-
         cursor.close()
         conn.close()
 
@@ -90,9 +90,9 @@ def upload_csv():
         traceback.print_exc()
         return jsonify({"error": f"Une erreur s'est produite: {str(e)}"}), 500
 
-# 📌 Route pour Récupérer les Prospects LinkedIn Importés
-@app.route('/get_prospects', methods=['GET'])
-def get_prospects():
+# 📌 Route pour Analyser et Classer les Prospects avec OpenAI
+@app.route('/analyze_prospects', methods=['POST'])
+def analyze_prospects():
     try:
         conn = connect_db()
         if not conn:
@@ -101,21 +101,71 @@ def get_prospects():
         cursor = conn.cursor()
         cursor.execute("SELECT full_name, profile_url, job_title FROM linkedin_prospects")
         prospects = cursor.fetchall()
-
         cursor.close()
         conn.close()
 
-        formatted_prospects = [{"nom": p[0], "linkedin": p[1], "poste": p[2]} for p in prospects]
+        analyzed_prospects = []
+        for p in prospects:
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "Classifie ce prospect selon son potentiel d'investissement."},
+                    {"role": "user", "content": f"Nom: {p[0]}, Poste: {p[2]}. Est-il un bon investisseur ?"}
+                ]
+            )
+            classification = response['choices'][0]['message']['content']
+            analyzed_prospects.append({"nom": p[0], "linkedin": p[1], "poste": p[2], "classement": classification})
 
-        return jsonify(formatted_prospects), 200
+        return jsonify(analyzed_prospects), 200
 
     except Exception as e:
-        print(f"❌ Erreur dans /get_prospects : {e}")
+        print(f"❌ Erreur dans /analyze_prospects : {e}")
         traceback.print_exc()
         return jsonify({"error": f"Une erreur s'est produite: {str(e)}"}), 500
 
-# 📌 Forcer Flask à utiliser le port de Render
-port = int(os.environ.get("PORT", 5000))
+# 📌 Route pour Générer Automatiquement un Post avec OpenAI
+@app.route('/generate_post', methods=['POST'])
+def generate_post():
+    try:
+        data = request.get_json(force=True, silent=True)
+        topic = data.get("topic", "Investissement immobilier")
+
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "Génère un post engageant sur le sujet donné."},
+                {"role": "user", "content": f"Crée un post pour les réseaux sociaux sur {topic}."}
+            ]
+        )
+        generated_post = response['choices'][0]['message']['content']
+
+        return jsonify({"post": generated_post}), 200
+
+    except Exception as e:
+        print(f"❌ Erreur dans /generate_post : {e}")
+        traceback.print_exc()
+        return jsonify({"error": f"Une erreur s'est produite: {str(e)}"}), 500
+
+# 📌 Route pour Déterminer la Meilleure Heure de Publication
+@app.route('/best_time_to_post', methods=['GET'])
+def best_time_to_post():
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "Analyse les meilleures heures pour publier sur les réseaux sociaux."},
+                {"role": "user", "content": "Quelle est la meilleure heure pour publier sur LinkedIn et Facebook ?"}
+            ]
+        )
+        best_time = response['choices'][0]['message']['content']
+
+        return jsonify({"best_time": best_time}), 200
+
+    except Exception as e:
+        print(f"❌ Erreur dans /best_time_to_post : {e}")
+        traceback.print_exc()
+        return jsonify({"error": f"Une erreur s'est produite: {str(e)}"}), 500
 
 if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
