@@ -139,6 +139,30 @@ def test_db():
         logging.error("Impossible de se connecter à la base de données.")
         return jsonify({"error": "❌ Impossible de se connecter à la base de données."}), 500
 
+@app.route('/generate_image', methods=['POST'])
+@error_handler
+def generate_image():
+    data = request.get_json(force=True, silent=True)
+    topic = data.get("topic")
+
+    if not topic:
+        logging.warning("Aucun sujet fourni")
+        return jsonify({"error": "❌ Aucun sujet fourni"}), 400
+
+    logging.info(f"Génération d'une image pour le sujet : {topic}")
+
+    response = openai.Image.create(
+        model="dall-e-2",
+        prompt=f"Illustration correspondant au sujet : {topic}",
+        n=1,
+        size="1024x1024"
+    )
+
+    image_url = response["data"][0]["url"]
+    logging.info("Image générée avec succès")
+
+    return jsonify({"image_url": image_url}), 200
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     logging.info(f"Démarrage du serveur Flask sur le port {port}")
