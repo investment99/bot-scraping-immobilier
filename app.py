@@ -59,12 +59,14 @@ def search_openai():
         return jsonify({"error": "❌ Aucun mot-clé fourni"}), 400
     
     logging.info(f"Requête OpenAI pour la recherche : {query}")
-    response = openai.Completion.create(
-        engine="gpt-4",
-        prompt=f"Générer des suggestions de prospects pour la recherche : {query}",
-        max_tokens=100
+    response = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": "Tu es un expert en génération de prospects."},
+            {"role": "user", "content": f"Générer des suggestions de prospects pour la recherche : {query}"}
+        ]
     )
-    results = response.choices[0].text.strip().split('\n')
+    results = [choice['message']['content'] for choice in response['choices']]
     logging.info(f"Résultats OpenAI : {results}")
     return jsonify({"results": results}), 200
 
@@ -84,12 +86,14 @@ def analyse_prospects():
         company = prospect['company']
         logging.info(f"Évaluation du prospect : {name} - {company}")
         prompt = f"Évalue ce prospect : {name} travaillant pour {company}. Quelle est sa pertinence ?"
-        response = openai.Completion.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4",
-            prompt=prompt,
-            max_tokens=50
+            messages=[
+                {"role": "system", "content": "Tu es un analyste spécialisé en prospects."},
+                {"role": "user", "content": prompt}
+            ]
         )
-        score = response.choices[0].text.strip()
+        score = response['choices'][0]['message']['content'].strip()
         sorted_prospects.append({
             'name': name,
             'company': company,
@@ -111,12 +115,14 @@ def generate_post():
         return jsonify({"error": "❌ Aucun sujet fourni"}), 400
     
     logging.info(f"Génération d'un post pour le sujet : {topic}")
-    response = openai.Completion.create(
-        engine="gpt-4",
-        prompt=f"Générer un post sur le sujet : {topic}",
-        max_tokens=200
+    response = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": "Tu es un rédacteur spécialisé en marketing."},
+            {"role": "user", "content": f"Générer un post sur le sujet : {topic}"}
+        ]
     )
-    generated_post = response.choices[0].text.strip()
+    generated_post = response['choices'][0]['message']['content'].strip()
     logging.info("Post généré avec succès")
     return jsonify({"generated_post": generated_post}), 200
 
