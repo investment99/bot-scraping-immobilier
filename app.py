@@ -19,7 +19,7 @@ app = Flask(__name__)
 CORS(app, origins=["https://p-i-investment.com"])
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-client = openai.Client()
+client = openai.OpenAI()
 
 def connect_db():
     try:
