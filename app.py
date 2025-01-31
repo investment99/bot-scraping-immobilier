@@ -6,7 +6,6 @@ import os
 from dotenv import load_dotenv
 import traceback
 import csv
-from googlesearch import search
 import openai
 
 load_dotenv()
@@ -18,7 +17,7 @@ CORS(app, origins=["https://p-i-investment.com"])
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 openai.api_key = OPENAI_API_KEY
 
-# 📌 Connexion à la base de données PostgreSQL
+# 📌 Connexion à la base de données PostgreSQL (si nécessaire)
 def connect_db():
     try:
         db_url = os.getenv("DATABASE_URL")
@@ -29,12 +28,12 @@ def connect_db():
         print(f"❌ Erreur connexion DB : {e}")
         return None
 
-# 📌 Route de test pour voir si l'API fonctionne
+# 📌 Route de test pour vérifier si l'API fonctionne
 @app.route('/')
 def home():
     return "✅ API Flask fonctionne correctement !"
 
-# 📌 Route pour la Recherche de Prospects via Google Search
+# 📌 Route pour la Recherche de Prospects via Google Search (reste inchangée)
 @app.route('/search_google', methods=['POST'])
 def search_google():
     try:
@@ -44,6 +43,7 @@ def search_google():
         if not query:
             return jsonify({"error": "❌ Aucun mot-clé fourni"}), 400
 
+        # Effectuer une recherche Google et retourner les résultats
         results = list(search(query, num_results=10))
 
         return jsonify({"results": results}), 200
@@ -52,57 +52,45 @@ def search_google():
         print(f"❌ Erreur dans /search_google : {e}")
         return jsonify({"error": f"Une erreur s'est produite: {str(e)}"}), 500
 
-# 📌 Route pour Importer un Fichier CSV contenant des Prospects LinkedIn
-@app.route('/upload_csv', methods=['POST'])
-def upload_csv():
+# 📌 Route pour analyser et trier les prospects avec OpenAI
+@app.route('/analyse_prospects', methods=['POST'])
+def analyse_prospects():
     try:
-        if 'csv_file' not in request.files:
-            return jsonify({"error": "❌ Aucun fichier reçu"}), 400
-
-        file = request.files['csv_file']
-        if file.filename == '':
-            return jsonify({"error": "❌ Fichier invalide"}), 400
-
-        file_content = file.read().decode("utf-8").splitlines()
-        csv_reader = csv.reader(file_content)
-
-        conn = connect_db()
-        if not conn:
-            return jsonify({"error": "❌ Impossible de se connecter à la base de données"}), 500
-
-        cursor = conn.cursor()
-        prospects = []
-
-        for row in csv_reader:
-            if len(row) >= 3:
-                full_name, profile_url, job_title = row[:3]
-                prospects.append((full_name, profile_url, job_title))
-
-        cursor.executemany("INSERT INTO linkedin_prospects (full_name, profile_url, job_title) VALUES (%s, %s, %s)", prospects)
-        conn.commit()
-        cursor.close()
-        conn.close()
-
-        return jsonify({"message": f"✅ {len(prospects)} prospects importés avec succès."}), 200
-
-    except Exception as e:
-        print(f"❌ Erreur dans /upload_csv : {e}")
-        traceback.print_exc()
-        return jsonify({"error": f"Une erreur s'est produite: {str(e)}"}), 500
-
-# 📌 Route pour envoyer les données à Make.com via Webhook
-@app.route('/send_to_make', methods=['POST'])
-def send_to_make():
-    try:
+        # Récupérer les données JSON envoyées par PHP
         data = request.get_json(force=True, silent=True)
-        webhook_url = "https://hook.eu2.make.com/z60ssi7icgai6s9sjky51ckhcp3xtvtl"
+        prospects = data.get("prospects")
 
-        response = requests.post(webhook_url, json=data)
-        response.raise_for_status()
+        if not prospects or len(prospects) == 0:
+            return jsonify({"error": "❌ Aucune donnée de prospect reçue."}), 400
 
-        return jsonify({"message": "✅ Données envoyées avec succès à Make.com."}), 200
+        sorted_prospects = []
+        for prospect in prospects:
+            name = prospect['name']
+            company = prospect['company']
+
+            # Analyse OpenAI pour chaque prospect (exemple simple)
+            prompt = f"Évalue ce prospect : {name} travaillant pour {company}. Quelle est sa pertinence ?"
+            response = openai.Completion.create(
+                model="text-davinci-003",
+                prompt=prompt,
+                max_tokens=50
+            )
+
+            score = response.choices[0].text.strip()
+            sorted_prospects.append({
+                'name': name,
+                'company': company,
+                'score': score
+            })
+
+        # Trier les prospects par score
+        sorted_prospects.sort(key=lambda x: x['score'], reverse=True)
+
+        # Retourner les prospects triés
+        return jsonify(sorted_prospects), 200
+
     except Exception as e:
-        print(f"❌ Erreur dans /send_to_make : {e}")
+        print(f"❌ Erreur dans /analyse_prospects : {e}")
         traceback.print_exc()
         return jsonify({"error": f"Une erreur s'est produite: {str(e)}"}), 500
 
