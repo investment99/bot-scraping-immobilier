@@ -10,14 +10,12 @@ import openai
 
 load_dotenv()
 
-app = Flask(__name__)  # ✅ Définition de Flask ici
+app = Flask(__name__)
 CORS(app, origins=["https://p-i-investment.com"])
 
-# 📌 Connexion à OpenAI
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 openai.api_key = OPENAI_API_KEY
 
-# 📌 Connexion à la base de données PostgreSQL (si nécessaire)
 def connect_db():
     try:
         db_url = os.getenv("DATABASE_URL")
@@ -28,14 +26,12 @@ def connect_db():
         print(f"❌ Erreur connexion DB : {e}")
         return None
 
-# 📌 Route de test pour vérifier si l'API fonctionne
 @app.route('/')
 def home():
     return "✅ API Flask fonctionne correctement !"
 
-# 📌 Route pour la Recherche de Prospects via Google Search (reste inchangée)
-@app.route('/search_google', methods=['POST'])
-def search_google():
+@app.route('/search_openai', methods=['POST'])
+def search_openai():
     try:
         data = request.get_json(force=True, silent=True)
         query = data.get("query")
@@ -43,20 +39,25 @@ def search_google():
         if not query:
             return jsonify({"error": "❌ Aucun mot-clé fourni"}), 400
 
-        # Effectuer une recherche Google et retourner les résultats
-        results = list(search(query, num_results=10))
-
-        return jsonify({"results": results}), 200
+        try:
+            response = openai.Completion.create(
+                engine="text-davinci-002",
+                prompt=f"Générer des suggestions de prospects pour la recherche : {query}",
+                max_tokens=100
+            )
+            results = response.choices[0].text.strip().split('\n')
+            return jsonify({"results": results}), 200
+        except openai.error.OpenAIError as e:
+            print(f"Erreur OpenAI : {e}")
+            return jsonify({"error": "Erreur lors de l'appel à OpenAI"}), 500
 
     except Exception as e:
-        print(f"❌ Erreur dans /search_google : {e}")
+        print(f"❌ Erreur dans /search_openai : {e}")
         return jsonify({"error": f"Une erreur s'est produite: {str(e)}"}), 500
 
-# 📌 Route pour analyser et trier les prospects avec OpenAI
 @app.route('/analyse_prospects', methods=['POST'])
 def analyse_prospects():
     try:
-        # Récupérer les données JSON envoyées par PHP
         data = request.get_json(force=True, silent=True)
         prospects = data.get("prospects")
 
@@ -68,25 +69,24 @@ def analyse_prospects():
             name = prospect['name']
             company = prospect['company']
 
-            # Analyse OpenAI pour chaque prospect (exemple simple)
-            prompt = f"Évalue ce prospect : {name} travaillant pour {company}. Quelle est sa pertinence ?"
-            response = openai.Completion.create(
-                model="text-davinci-003",
-                prompt=prompt,
-                max_tokens=50
-            )
+            try:
+                prompt = f"Évalue ce prospect : {name} travaillant pour {company}. Quelle est sa pertinence ?"
+                response = openai.Completion.create(
+                    model="text-davinci-003",
+                    prompt=prompt,
+                    max_tokens=50
+                )
+                score = response.choices[0].text.strip()
+                sorted_prospects.append({
+                    'name': name,
+                    'company': company,
+                    'score': score
+                })
+            except openai.error.OpenAIError as e:
+                print(f"Erreur OpenAI pour le prospect {name} : {e}")
+                continue
 
-            score = response.choices[0].text.strip()
-            sorted_prospects.append({
-                'name': name,
-                'company': company,
-                'score': score
-            })
-
-        # Trier les prospects par score
         sorted_prospects.sort(key=lambda x: x['score'], reverse=True)
-
-        # Retourner les prospects triés
         return jsonify(sorted_prospects), 200
 
     except Exception as e:
@@ -94,7 +94,30 @@ def analyse_prospects():
         traceback.print_exc()
         return jsonify({"error": f"Une erreur s'est produite: {str(e)}"}), 500
 
-# 📌 Autres routes déjà définies...
+@app.route('/generate_post', methods=['POST'])
+def generate_post():
+    try:
+        data = request.get_json(force=True, silent=True)
+        topic = data.get("topic")
+
+        if not topic:
+            return jsonify({"error": "❌ Aucun sujet fourni"}), 400
+
+        try:
+            response = openai.Completion.create(
+                engine="text-davinci-002",
+                prompt=f"Générer un post sur le sujet : {topic}",
+                max_tokens=200
+            )
+            generated_post = response.choices[0].text.strip()
+            return jsonify({"generated_post": generated_post}), 200
+        except openai.error.OpenAIError as e:
+            print(f"Erreur OpenAI : {e}")
+            return jsonify({"error": "Erreur lors de l'appel à OpenAI"}), 500
+
+    except Exception as e:
+        print(f"❌ Erreur dans /generate_post : {e}")
+        return jsonify({"error": f"Une erreur s'est produite: {str(e)}"}), 500
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
