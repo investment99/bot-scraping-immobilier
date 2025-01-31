@@ -144,20 +144,21 @@ def test_db():
 def generate_image():
     data = request.get_json(force=True, silent=True)
     topic = data.get("topic")
+    size = data.get("size", "1024x1024")  # Taille par défaut
 
     if not topic:
         logging.warning("Aucun sujet fourni")
         return jsonify({"error": "❌ Aucun sujet fourni"}), 400
 
-    logging.info(f"Génération d'une image pour le sujet : {topic}")
+    logging.info(f"Génération d'une image pour le sujet : {topic} avec taille {size}")
 
     try:
-        client = openai.OpenAI(api_key=OPENAI_API_KEY)  # Nouvelle instanciation pour OpenAI >= 1.0.0
+        client = openai.OpenAI(api_key=OPENAI_API_KEY)
         response = client.images.generate(
             model="dall-e-2",
             prompt=f"Illustration correspondant au sujet : {topic}",
             n=1,
-            size="1024x1024"
+            size=size  # Taille dynamique
         )
 
         image_url = response.data[0].url
@@ -168,6 +169,7 @@ def generate_image():
     except Exception as e:
         logging.error(f"❌ Erreur lors de la génération de l'image : {e}")
         return jsonify({"error": f"Une erreur s'est produite: {str(e)}"}), 500
+
 
 
 if __name__ == "__main__":
