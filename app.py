@@ -66,19 +66,18 @@ def setup_chromium():
     """Télécharge Chromium et ChromeDriver si nécessaire et corrige les chemins."""
     if not os.path.exists(CHROME_PATH):
         print("🔽 Chromium non trouvé, téléchargement en cours...")
-        os.makedirs(CHROME_DIR, exist_ok=True)  # Assurer que le dossier existe
+        os.makedirs(CHROME_DIR, exist_ok=True)
         download_and_extract(CHROMIUM_URL, CHROME_PATH)
 
     if not os.path.exists(CHROMEDRIVER_PATH):
         print("🔽 ChromeDriver non trouvé, téléchargement en cours...")
-        os.makedirs(CHROMEDRIVER_DIR, exist_ok=True)  # Assurer que le dossier existe
+        os.makedirs(CHROMEDRIVER_DIR, exist_ok=True)
         download_and_extract(CHROMEDRIVER_URL, CHROMEDRIVER_PATH)
 
-# 📌 Route de test pour vérifier que Selenium fonctionne
-@app.route('/test_selenium', methods=['GET'])
-def test_selenium():
+def scrape_with_selenium(forum_url):
+    """Scraper une page avec Selenium et retourner son HTML."""
     try:
-        setup_chromium()  # Assure l'installation de Chromium
+        setup_chromium()  # Vérifie que Chromium est installé
 
         # Configuration pour Chromium
         chrome_options = Options()
@@ -92,24 +91,95 @@ def test_selenium():
         service = Service(CHROMEDRIVER_PATH)
         driver = webdriver.Chrome(service=service, options=chrome_options)
 
-        # Aller sur un site simple (Google)
-        driver.get("https://www.google.com")
-        title = driver.title
-        driver.quit()
+        print(f"🔍 Chargement de la page {forum_url}")
+        driver.get(forum_url)
+        time.sleep(3)  # Attente du chargement de la page
 
-        return jsonify({"message": "✅ Selenium fonctionne !", "title": title}), 200
+        # Essayer d'accepter les cookies
+        try:
+            accept_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Accepter') or contains(text(), 'J'accepte') or contains(text(), 'OK')]")
+            accept_button.click()
+            print("✅ Cookies acceptés avec succès")
+            time.sleep(2)
+        except:
+            print("⚠️ Aucun bouton de cookies détecté.")
+
+        # Récupérer le HTML après acceptation des cookies
+        page_source = driver.page_source
+        driver.quit()
+        return page_source
 
     except Exception as e:
-        print(f"❌ Erreur Selenium : {str(e)}")
-        return jsonify({"error": f"❌ Selenium ne fonctionne pas: {str(e)}"}), 500
+        print(f"❌ Erreur Selenium sur Render: {str(e)}")
+        return None
 
 # 📌 Route de test pour voir si l'API fonctionne
 @app.route('/')
 def home():
     return "✅ API Flask fonctionne correctement !"
 
+# 📌 Route pour tester Selenium
+@app.route('/test_selenium', methods=['GET'])
+def test_selenium():
+    try:
+        html = scrape_with_selenium("https://www.google.com")
+        return jsonify({"message": "✅ Selenium fonctionne !"}), 200
+    except Exception as e:
+        return jsonify({"error": f"❌ Selenium ne fonctionne pas: {str(e)}"}), 500
+
+# 📌 Route pour scraper les prospects sur un forum
+@app.route('/scrape_prospects', methods=['POST'])
+def scrape_prospects():
+    try:
+        data = request.get_json(force=True, silent=True)
+        if not data:
+            return jsonify({"error": "❌ Aucune donnée reçue"}), 400
+
+        user_id = data.get("user_id")
+        forum_url = data.get("forum_url")
+        keyword = data.get("keyword", "investir")
+
+        if not forum_url:
+            return jsonify({"error": "❌ URL du forum manquante"}), 400
+
+        # Scraper la page avec Selenium
+        html_content = scrape_with_selenium(forum_url)
+        if not html_content:
+            return jsonify({"error": "❌ Impossible d'accéder au forum avec Selenium"}), 500
+
+        soup = BeautifulSoup(html_content, 'html.parser')
+        posts = soup.find_all('div', class_="post")  # Modifier cette classe si nécessaire
+        prospects = []
+
+        for post in posts:
+            post_content = post.text.strip()
+            if keyword.lower() in post_content.lower():
+                prospects.append(post_content)
+
+        if not prospects:
+            return jsonify({"message": "Aucun prospect trouvé avec ce mot-clé."}), 200
+
+        conn = connect_db()
+        if not conn:
+            return jsonify({"error": "❌ Impossible de se connecter à la base de données"}), 500
+
+        cursor = conn.cursor()
+        for prospect in prospects:
+            cursor.execute("INSERT INTO prospects (user_id, content) VALUES (%s, %s)", (user_id, prospect))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({"message": f"{len(prospects)} prospects ajoutés pour l'abonné {user_id}."}), 200
+
+    except Exception as e:
+        print(f"❌ Erreur dans /scrape_prospects : {e}")
+        traceback.print_exc()
+        return jsonify({"error": f"Une erreur s'est produite: {str(e)}"}), 500
+
 # 📌 Forcer Flask à utiliser le port de Render
-port = int(os.environ.get("PORT", 5000))  # Récupère le port donné par Render ou utilise 5000 par défaut
+port = int(os.environ.get("PORT", 5000))
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=port, debug=True)
