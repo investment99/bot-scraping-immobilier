@@ -1,15 +1,44 @@
-import os
-import shutil
+import psycopg2
 import requests
-import stat
-import zipfile
-
+from bs4 import BeautifulSoup
+import openai
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import os
+from dotenv import load_dotenv
+import traceback
+from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
+import time
+import zipfile
+import stat
 
+load_dotenv()
+
+app = Flask(__name__)  # ✅ Définition de Flask ici
+
+# 🟢 Activer CORS uniquement pour ton site WordPress
+CORS(app, origins=["https://p-i-investment.com"])
+
+# 📌 Connexion API OpenAI
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+openai.api_key = OPENAI_API_KEY
+
+# 📌 Connexion à la base de données PostgreSQL
+def connect_db():
+    try:
+        db_url = os.getenv("DATABASE_URL")
+        if not db_url:
+            raise ValueError("❌ DATABASE_URL non configurée")
+        return psycopg2.connect(db_url)
+    except Exception as e:
+        print(f"❌ Erreur connexion DB : {e}")
+        return None
+
+# 📌 Installation de Chromium et ChromeDriver
 CHROMIUM_URL = "https://storage.googleapis.com/chrome-for-testing-public/121.0.6167.85/linux64/chrome-linux64.zip"
 CHROMEDRIVER_URL = "https://storage.googleapis.com/chrome-for-testing-public/121.0.6167.85/linux64/chromedriver-linux64.zip"
 CHROME_PATH = "/tmp/chrome-linux64/chrome"
@@ -37,46 +66,42 @@ def setup_chromium():
         print("🔽 Téléchargement de ChromeDriver...")
         download_and_extract(CHROMEDRIVER_URL, CHROMEDRIVER_PATH)
 
-def scrape_with_selenium(forum_url):
+# 📌 Route de test pour vérifier que Selenium fonctionne
+@app.route('/test_selenium', methods=['GET'])
+def test_selenium():
     try:
-        setup_chromium()  # S'assurer que Chromium et ChromeDriver sont bien installés
+        setup_chromium()  # Assure l'installation de Chromium
 
-        # Configuration spécifique pour Render
+        # Configuration pour Chromium
         chrome_options = Options()
         chrome_options.binary_location = CHROME_PATH
         chrome_options.add_argument("--headless")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--remote-debugging-port=9222")
-        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-        chrome_options.add_argument("--disable-infobars")
-        chrome_options.add_argument("--disable-popup-blocking")
-        chrome_options.add_argument("--window-size=1920x1080")
 
-        # Lancer Chromium avec le bon WebDriver
+        # Lancer Chromium avec ChromeDriver
         service = Service(CHROMEDRIVER_PATH)
         driver = webdriver.Chrome(service=service, options=chrome_options)
 
-        print("✅ Selenium a démarré avec succès sur Render.")
-
-        driver.get(forum_url)
-        driver.implicitly_wait(5)  # Attente pour éviter les blocages
-
-        # Chercher et cliquer sur "Accepter les cookies"
-        try:
-            accept_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Accepter') or contains(text(), 'J'accepte') or contains(text(), 'OK')]")
-            accept_button.click()
-            print("✅ Cookies acceptés avec succès")
-            driver.implicitly_wait(2)
-        except:
-            print("⚠️ Aucun bouton de cookies détecté.")
-
-        # Récupérer le HTML après acceptation des cookies
-        page_source = driver.page_source
+        # Aller sur un site simple (Google)
+        driver.get("https://www.google.com")
+        title = driver.title
         driver.quit()
-        return page_source
+
+        return jsonify({"message": "✅ Selenium fonctionne !", "title": title}), 200
 
     except Exception as e:
-        print(f"❌ Erreur Selenium sur Render: {str(e)}")
-        return None
+        print(f"❌ Erreur Selenium : {str(e)}")
+        return jsonify({"error": f"❌ Selenium ne fonctionne pas: {str(e)}"}), 500
+
+# 📌 Route de test pour voir si l'API fonctionne
+@app.route('/')
+def home():
+    return "✅ API Flask fonctionne correctement !"
+
+# 📌 Forcer Flask à utiliser le port de Render
+port = int(os.environ.get("PORT", 5000))  # Récupère le port donné par Render ou utilise 5000 par défaut
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=port, debug=True)
