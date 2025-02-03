@@ -63,16 +63,17 @@ def search_openai():
         model="gpt-4",
         messages=[
             {"role": "system", "content": "Tu es un expert en génération de prospects."},
-            {"role": "user", "content": f"dentifie les personnes qui posent des questions sur l’investissement immobilier, cherchent des conseils ou partagent leur intérêt pour l’achat de biens locatifs, la défiscalisation, ou l’investissement patrimonial.
+            {"role": "user", "content": f"""identifie les personnes qui posent des questions sur l’investissement immobilier, cherchent des conseils ou partagent leur intérêt pour l’achat de biens locatifs, la défiscalisation, ou l’investissement patrimonial.
 Récupère leurs noms, coordonnées (si disponibles), liens vers leurs profils ou posts, et toute autre information pertinente (type d’investissement recherché, budget estimé, localisation souhaitée).
 Exclue les faux profils, les publicités et les sources non crédibles. Priorise les forums et groupes spécialisés (LinkedIn, Facebook, Reddit, forums immobiliers, sites d’investissement).
 Classe les prospects en fonction de leur niveau d’intérêt et de leur engagement (curieux, intéressés, prêts à investir).
-Présente-moi les résultats sous forme d’un tableau structuré avec les informations suivantes ,Nom du prospect,Lien vers son profil/poste d’origine,Intérêt exprimé ,Budget estimé,Localisation souhaitée,Moyen de contact disponible,Je veux des résultats actualisés et vérifiés en priorité : {query}"}
+Présente-moi les résultats sous forme d’un tableau structuré avec les informations suivantes : Nom du prospect, Lien ver..."""}
         ]
     )
     results = [choice.message.content for choice in response.choices]
     logging.info(f"Résultats OpenAI : {results}")   
     return jsonify({"results": results}), 200
+
 
 @app.route('/analyse_prospects', methods=['POST'])
 @error_handler
