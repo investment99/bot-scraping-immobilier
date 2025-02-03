@@ -175,20 +175,37 @@ def generate_image():
         logging.error(f"❌ Erreur lors de la génération de l'image : {e}")
         return jsonify({"error": f"Une erreur s'est produite: {str(e)}"}), 500
 
-@app.route('/best_time', methods=['GET'])
+@app.route('/best_time', methods=['POST'])
 @error_handler
 def best_time():
-    # Utilisation d'OpenAI pour obtenir la meilleure heure de publication.
+    data = request.get_json(force=True, silent=True)
+    audience = data.get("audience")
+    content_type = data.get("content_type")
+    network = data.get("network")
+    
+    if not audience or not content_type or not network:
+        logging.warning("Données insuffisantes pour calculer la meilleure heure")
+        return jsonify({"error": "Veuillez renseigner l'audience, le type de contenu et le réseau social."}), 400
+
+    prompt = f"""En tenant compte des informations suivantes :
+Audience: {audience}
+Type de contenu: {content_type}
+Réseau social: {network}
+
+Quelle est la meilleure heure aujourd'hui pour publier ce contenu sur ce réseau social ?
+Donne-moi une réponse précise et justifiée."""
+    
     response = client.chat.completions.create(
         model="gpt-4",
         messages=[
             {"role": "system", "content": "Tu es un expert en réseaux sociaux et marketing."},
-            {"role": "user", "content": "Quelle est la meilleure heure pour publier un contenu sur les réseaux sociaux aujourd'hui ? il faut que tu determine l'heure et la datte a chaque requette pour donner une reponse exact."}
+            {"role": "user", "content": prompt}
         ]
     )
     best_time_value = response.choices[0].message.content.strip()
     logging.info(f"Meilleure heure calculée par OpenAI : {best_time_value}")
     return jsonify({"best_time": best_time_value}), 200
+
 
 
 if __name__ == "__main__":
