@@ -170,6 +170,20 @@ def generate_image():
         logging.error(f"❌ Erreur lors de la génération de l'image : {e}")
         return jsonify({"error": f"Une erreur s'est produite: {str(e)}"}), 500
 
+@app.route('/best_time', methods=['GET'])
+@error_handler
+def best_time():
+    # Utilisation d'OpenAI pour obtenir la meilleure heure de publication.
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": "Tu es un expert en réseaux sociaux et marketing."},
+            {"role": "user", "content": "Quelle est la meilleure heure pour publier un contenu sur les réseaux sociaux aujourd'hui ?"}
+        ]
+    )
+    best_time_value = response.choices[0].message.content.strip()
+    logging.info(f"Meilleure heure calculée par OpenAI : {best_time_value}")
+    return jsonify({"best_time": best_time_value}), 200
 
 
 if __name__ == "__main__":
