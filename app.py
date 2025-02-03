@@ -63,11 +63,15 @@ def search_openai():
         model="gpt-4",
         messages=[
             {"role": "system", "content": "Tu es un expert en génération de prospects."},
-            {"role": "user", "content": f"Générer des suggestions de prospects pour la recherche : {query}"}
+            {"role": "user", "content": f"dentifie les personnes qui posent des questions sur l’investissement immobilier, cherchent des conseils ou partagent leur intérêt pour l’achat de biens locatifs, la défiscalisation, ou l’investissement patrimonial.
+Récupère leurs noms, coordonnées (si disponibles), liens vers leurs profils ou posts, et toute autre information pertinente (type d’investissement recherché, budget estimé, localisation souhaitée).
+Exclue les faux profils, les publicités et les sources non crédibles. Priorise les forums et groupes spécialisés (LinkedIn, Facebook, Reddit, forums immobiliers, sites d’investissement).
+Classe les prospects en fonction de leur niveau d’intérêt et de leur engagement (curieux, intéressés, prêts à investir).
+Présente-moi les résultats sous forme d’un tableau structuré avec les informations suivantes ,Nom du prospect,Lien vers son profil/poste d’origine,Intérêt exprimé ,Budget estimé,Localisation souhaitée,Moyen de contact disponible,Je veux des résultats actualisés et vérifiés en priorité : {query}"}
         ]
     )
     results = [choice.message.content for choice in response.choices]
-    logging.info(f"Résultats OpenAI : {results}")
+    logging.info(f"Résultats OpenAI : {results}")   
     return jsonify({"results": results}), 200
 
 @app.route('/analyse_prospects', methods=['POST'])
@@ -120,7 +124,7 @@ def generate_post():
     response = client.chat.completions.create(
         model="gpt-4",
         messages=[
-            {"role": "system", "content": "Tu es un rédacteur spécialisé en marketing."},
+            {"role": "system", "content": "tu es un rédacteur expert en marketing digital, spécialisé dans la création de contenus performants pour les réseaux sociaux Facebook, Instagram, LinkedIn, Twitter, TikTok.Ta mission est de rédiger des publications engageantes, virales et optimisées pour chaque plateforme, en fonction des objectifs suivants : Générer de l’engagement likes, commentaires, partages ,Attirer des prospects qualifiés et convertir des clients , Améliorer la notoriété et l’image de marque , Optimiser les taux de clics et d’interactions , Chaque publication doit , Avoir une accroche percutante pour capter l’attention dès les premières secondes ,Utiliser un ton adapté à l’audience ciblée professionnel, amical, humoristique, inspirant , Contenir des mots-clés stratégiques et des hashtags pertinents , Être structurée de manière claire et dynamique phrases courtes, emojis si nécessaire, call-to-action puissant ,Être optimisée en fonction des algorithmes des réseaux sociaux."},
             {"role": "user", "content": f"Générer un post sur le sujet : {topic}"}
         ]
     )
@@ -178,7 +182,7 @@ def best_time():
         model="gpt-4",
         messages=[
             {"role": "system", "content": "Tu es un expert en réseaux sociaux et marketing."},
-            {"role": "user", "content": "Quelle est la meilleure heure pour publier un contenu sur les réseaux sociaux aujourd'hui ?"}
+            {"role": "user", "content": "Quelle est la meilleure heure pour publier un contenu sur les réseaux sociaux aujourd'hui ? il faut que tu determine l'heure et la datte a chaque requette pour donner une reponse exact."}
         ]
     )
     best_time_value = response.choices[0].message.content.strip()
