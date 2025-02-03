@@ -160,19 +160,18 @@ def generate_image():
         client = openai.OpenAI(api_key=OPENAI_API_KEY)
         response = client.images.generate(
             model="dall-e-2",
-            prompt=f"Illustration correspondant au sujet : {topic}",
+            prompt=f"Crée une image moderne, professionnelle et élégante qui illustre le sujet suivant : {topic}. L'image doit refléter un design contemporain, avec des couleurs harmonieuses et un style épuré.",
             n=1,
-            size=size  # Taille dynamique
+            size=size
         )
-
         image_url = response.data[0].url
         logging.info("✅ Image générée avec succès")
-
         return jsonify({"image_url": image_url}), 200
-    
+
     except Exception as e:
         logging.error(f"❌ Erreur lors de la génération de l'image : {e}")
         return jsonify({"error": f"Une erreur s'est produite: {str(e)}"}), 500
+
 
 @app.route('/best_time', methods=['POST'])
 @error_handler
