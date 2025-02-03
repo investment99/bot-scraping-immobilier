@@ -160,7 +160,7 @@ def generate_image():
         client = openai.OpenAI(api_key=OPENAI_API_KEY)
         response = client.images.generate(
             model="dall-e-2",
-            prompt=f"Crée une image moderne, professionnelle et élégante qui illustre le sujet suivant : {topic}. L'image doit refléter un design contemporain, avec des couleurs harmonieuses et un style épuré.",
+            prompt=f"Crée une image professionnelle et impactante, parfaitement adaptée à un post sur les réseaux sociaux. L’image doit être en haute qualité (HD), optimisée pour LinkedIn, Facebook, Instagram et Twitter, avec un design moderne, épuré et engageant qui illustre le sujet suivant : {topic}. L'image doit refléter un design contemporain, avec des couleurs harmonieuses et un style épuré.",
             n=1,
             size=size
         )
