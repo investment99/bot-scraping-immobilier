@@ -124,7 +124,7 @@ def generate_estimation():
         elements.append(Image(resized[0], width=469, height=716))
         elements.append(PageBreak())
 
-        # Sections du rapport
+        # Pour la version synchrone, nous conservons les sections définies manuellement
         sections = [
             ("Informations personnelles", 
              f"Commence le rapport par une introduction personnalisée en rappelant les informations suivantes : "
@@ -162,7 +162,7 @@ def generate_estimation():
         return jsonify({"error": str(e)}), 500
 
 # ==============================
-# Endpoints pour génération asynchrone avec progression réelle
+# Endpoints pour génération asynchrone avec faux curseur
 # ==============================
 
 progress_map = {}  # job_id -> progression (0-100)
@@ -170,10 +170,10 @@ results_map = {}   # job_id -> chemin du PDF généré
 
 def generate_estimation_background(job_id, form_data):
     try:
-        # Initialisation
+        # Pour cette version asynchrone, on retire la découpe en sections.
+        # On combine toutes les informations dans un unique prompt pour laisser l'IA gérer la structure (5 pages max)
         progress_map[job_id] = 0
         time.sleep(1)
-        # Premier palier fixe : après traitement initial, progress = 40%
         progress_map[job_id] = 40
 
         # Création du PDF et page de garde
@@ -193,51 +193,40 @@ def generate_estimation_background(job_id, form_data):
         if resized:
             elements.append(Image(resized[0], width=469, height=716))
         elements.append(PageBreak())
-
-        # Deuxième palier fixe : après la page de garde, progress = 70%
-        time.sleep(1)
         progress_map[job_id] = 70
-
-        # Sections du rapport (avec appel OpenAI)
-        sections = [
-            ("Informations personnelles", 
-             f"Commence le rapport par une introduction personnalisée en rappelant les informations suivantes : "
-             f"{form_data.get('civilite')} {form_data.get('prenom')} {form_data.get('nom')}, domicilié(e) à {form_data.get('adresse_personnelle')}, "
-             f"code postal {form_data.get('code_postal')}, email : {form_data.get('email')}, téléphone : {form_data.get('telephone')}. "
-             f"Ensuite, présente brièvement la situation du client."),
-            ("Informations générales sur le bien", f"Le bien est un(e) {form_data.get('type_bien')}. Voici les caractéristiques indiquées : {form_data}."),
-            ("État général du bien", f"Voici les infos : état général = {form_data.get('etat_general')}, travaux récents = {form_data.get('travaux_recent')}, détails = {form_data.get('travaux_details')}, problèmes connus = {form_data.get('problemes')}."),
-            ("Équipements et commodités", f"Équipements renseignés : cuisine/SDB = {form_data.get('equipement_cuisine')}, électroménager = {form_data.get('electromenager')}, sécurité = {form_data.get('securite')}."),
-            ("Environnement et emplacement", f"Adresse : {form_data.get('adresse')} - Quartier : {form_data.get('quartier')} - Atouts : {form_data.get('atouts_quartier')} - Commerces : {form_data.get('distance_commerces')}."),
-            ("Historique et marché", f"Temps sur le marché : {form_data.get('temps_marche')} - Offres : {form_data.get('offres')} - Raison : {form_data.get('raison_vente')} - Prix similaires : {form_data.get('prix_similaires')}."),
-            ("Caractéristiques spécifiques", f"DPE : {form_data.get('dpe')} - Orientation : {form_data.get('orientation')} - Vue : {form_data.get('vue')}."),
-            ("Informations légales", f"Contraintes : {form_data.get('contraintes')} - Documents à jour : {form_data.get('documents')} - Charges de copropriété : {form_data.get('charges_copro')}."),
-            ("Prix et conditions de vente", f"Prix envisagé : {form_data.get('prix')} - Négociable : {form_data.get('negociation')} - Conditions particulières : {form_data.get('conditions')}."),
-            ("Autres informations", f"Occupation : {form_data.get('occupe')} - Dettes : {form_data.get('dettes')} - Charges fixes : {form_data.get('charges_fixes')}."),
-            ("Estimation IA", f"Estime le prix du bien situé à {form_data.get('adresse')} ({form_data.get('quartier')}), selon les infos fournies : {form_data}."),
-            ("Analyse prédictive", f"Prédiction : comment évoluera ce bien ({form_data.get('type_bien')}) dans les 5 à 10 prochaines années dans le quartier de {form_data.get('quartier')} ?"),
-            ("Recommandations IA", f"Que recommandes-tu à ce client pour mieux vendre ce bien ({form_data.get('type_bien')}) ?"),
-        ]
-    
-        for title, prompt in sections:
-            add_section_title(elements, title)
-            section = generate_estimation_section(prompt)
-            elements.extend(section)
-            elements.append(PageBreak())
-        
-        # Troisième palier fixe : après les sections, progress = 80%
         time.sleep(1)
+        
+        # Appel unique à OpenAI pour générer l'intégralité du rapport.
+        # Le prompt contient toutes les informations du formulaire, et l'IA doit organiser le rapport en 5 pages maximum.
+        combined_prompt = (
+            f"Informations personnelles: {form_data.get('civilite')} {form_data.get('prenom')} {form_data.get('nom')}, "
+            f"domicilié(e) à {form_data.get('adresse_personnelle')}, code postal {form_data.get('code_postal')}, "
+            f"email: {form_data.get('email')}, téléphone: {form_data.get('telephone')}. "
+            f"Informations générales sur le bien: le bien est un(e) {form_data.get('type_bien')}. Détails: {form_data}. "
+            f"État général: {form_data.get('etat_general')}, travaux récents: {form_data.get('travaux_recent')}, "
+            f"détails: {form_data.get('travaux_details')}, problèmes connus: {form_data.get('problemes')}. "
+            f"Équipements et commodités: {form_data.get('equipement_cuisine')}, {form_data.get('electromenager')}, {form_data.get('securite')}. "
+            f"Environnement et emplacement: {form_data.get('adresse')}, {form_data.get('quartier')}, atouts: {form_data.get('atouts_quartier')}, "
+            f"commerces: {form_data.get('distance_commerces')}. "
+            f"Historique et marché: {form_data.get('temps_marche')}, offres: {form_data.get('offres')}, "
+            f"raison de vente: {form_data.get('raison_vente')}, prix similaires: {form_data.get('prix_similaires')}. "
+            f"Caractéristiques spécifiques: {form_data.get('dpe')}, {form_data.get('orientation')}, {form_data.get('vue')}. "
+            f"Informations légales: {form_data.get('contraintes')}, {form_data.get('documents')}, charges: {form_data.get('charges_copro')}. "
+            f"Prix et conditions de vente: {form_data.get('prix')}, négociable: {form_data.get('negociation')}, conditions: {form_data.get('conditions')}. "
+            f"Autres informations: {form_data.get('occupe')}, dettes: {form_data.get('dettes')}, charges fixes: {form_data.get('charges_fixes')}."
+        )
+        section = generate_estimation_section(combined_prompt)
+        elements.extend(section)
+        elements.append(PageBreak())
         progress_map[job_id] = 80
-
+        time.sleep(1)
+        
         # Page de fin
         if len(resized) > 1:
             elements.append(Image(resized[1], width=469, height=716))
-        
-        # Quatrième palier fixe : après la page de fin, progress = 90%
-        time.sleep(1)
         progress_map[job_id] = 90
+        time.sleep(1)
         
-        # Finalisation du PDF
         doc.build(elements)
         progress_map[job_id] = 100
         results_map[job_id] = filename
