@@ -170,14 +170,13 @@ results_map = {}   # job_id -> chemin du PDF généré
 
 def generate_estimation_background(job_id, form_data):
     try:
-        # Initialisation de la progression de manière graduée
+        # Initialisation
         progress_map[job_id] = 0
-        time.sleep(0.5)
-        progress_map[job_id] = 10
-        time.sleep(0.5)
-        progress_map[job_id] = 20
+        time.sleep(1)
+        # Premier palier fixe : après traitement initial, progress = 40%
+        progress_map[job_id] = 40
 
-        # Étape 2 : Création du PDF et page de garde
+        # Création du PDF et page de garde
         name = form_data.get("nom", "Client")
         filename = os.path.join(PDF_FOLDER, f"estimation_{name.replace(' ', '_')}_{job_id}.pdf")
         doc = SimpleDocTemplate(filename, pagesize=A4, topMargin=2*cm, bottomMargin=2*cm, leftMargin=2*cm, rightMargin=2*cm)
@@ -194,12 +193,12 @@ def generate_estimation_background(job_id, form_data):
         if resized:
             elements.append(Image(resized[0], width=469, height=716))
         elements.append(PageBreak())
-        progress_map[job_id] = 30
-        time.sleep(0.5)
-        progress_map[job_id] = 40
 
-        # Étape 3 : Sections du rapport (avec appel OpenAI)
-        # On personnalise l'introduction dans la première section
+        # Deuxième palier fixe : après la page de garde, progress = 70%
+        time.sleep(1)
+        progress_map[job_id] = 70
+
+        # Sections du rapport (avec appel OpenAI)
         sections = [
             ("Informations personnelles", 
              f"Commence le rapport par une introduction personnalisée en rappelant les informations suivantes : "
@@ -220,25 +219,23 @@ def generate_estimation_background(job_id, form_data):
             ("Recommandations IA", f"Que recommandes-tu à ce client pour mieux vendre ce bien ({form_data.get('type_bien')}) ?"),
         ]
     
-        # Pour chaque section, on incrémente graduellement la progression
         for title, prompt in sections:
             add_section_title(elements, title)
             section = generate_estimation_section(prompt)
             elements.extend(section)
             elements.append(PageBreak())
-            # Incrémentation progressive entre chaque section
-            progress_map[job_id] += 5
-            time.sleep(0.5)
         
-        progress_map[job_id] = 70
-        time.sleep(0.5)
-        
-        # Étape 4 : Page de fin
+        # Troisième palier fixe : après les sections, progress = 80%
+        time.sleep(1)
+        progress_map[job_id] = 80
+
+        # Page de fin
         if len(resized) > 1:
             elements.append(Image(resized[1], width=469, height=716))
         
+        # Quatrième palier fixe : après la page de fin, progress = 90%
+        time.sleep(1)
         progress_map[job_id] = 90
-        time.sleep(0.5)
         
         # Finalisation du PDF
         doc.build(elements)
