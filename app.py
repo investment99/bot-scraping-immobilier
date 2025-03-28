@@ -71,31 +71,28 @@ def add_section_title(elements, title):
     elements.append(Paragraph(title, title_style))
     elements.append(Spacer(1, 12))
 
-def generate_estimation_section(prompt, max_tokens=1500, temperature=0.8):
+def generate_estimation_section(prompt, min_tokens=800):
     response = client.chat.completions.create(
         model="gpt-4",
         messages=[
             {
                 "role": "system",
                 "content": (
-                    "Tu es un expert en immobilier en France. Ta mission est de rédiger un rapport d'analyse détaillé, synthétique et professionnel pour un bien immobilier, "
-                    "en te basant sur les informations fournies dans le questionnaire. Le rapport doit être limité à 5 pages d'analyse (hors pages de garde) et inclure :\n"
-                    "1. Une introduction personnalisée qui récapitule le questionnaire et rappelle les coordonnées complètes du client (civilité, prénom, nom, adresse, code postal, email, téléphone).\n"
-                    "2. Une analyse comparative détaillée avec un tableau récapitulatif des prix des biens récemment vendus dans le même secteur et une comparaison avec la valeur actuelle estimée du bien.\n"
-                    "3. Des prévisions claires sur l'évolution du marché à 5 et 10 ans, accompagnées d'un graphique illustrant l'évolution des prix dans le quartier.\n"
-                    "4. Une description précise de la localisation du bien, incluant une référence à une image du plan ou des coordonnées géographiques exactes.\n"
-                    "5. Une analyse prédictive détaillée sur la valeur future du bien, en s'appuyant sur les tendances actuelles et historiques, et incluant des recommandations pratiques.\n"
-                    "Utilise intelligemment les données fournies et ne te contente pas de les répéter. Sois précis, synthétique et oriente ton analyse vers des recommandations concrètes."
+                    "Tu es un expert en immobilier en France. Ta mission est de rédiger un rapport d'analyse détaillé, synthétique et professionnel "
+                    "pour un bien immobilier. Le rapport doit être limité à 5 pages d'analyse (hors pages de garde) et inclure :\n"
+                    "1. Une introduction personnalisée reprenant les informations du client (civilité, prénom, nom, adresse, etc.).\n"
+                    "2. Une comparaison des prix des biens récemment vendus dans le même secteur, avec des tableaux récapitulatifs (prix au m², rendement locatif en pourcentage, etc.).\n"
+                    "3. Des prévisions claires sur l'évolution du marché à 5 et 10 ans.\n"
+                    "4. Une description précise de la localisation du bien sur un plan (par exemple, coordonnées géographiques ou description détaillée de l'emplacement).\n"
+                    "Utilise intelligemment les données fournies et ne te contente pas de les répéter. Sois synthétique et oriente ton analyse vers des recommandations pratiques."
                 )
             },
             {"role": "user", "content": prompt}
         ],
-        max_tokens=max_tokens,
-        temperature=temperature,
+        max_tokens=min_tokens,
+        temperature=0.7,
     )
     return markdown_to_elements(response.choices[0].message.content)
-
-
 
 def resize_image(image_path, output_path, target_size=(469, 716)):
     from PIL import Image as PILImage
