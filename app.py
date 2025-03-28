@@ -72,13 +72,24 @@ def generate_estimation_section(prompt, min_tokens=800):
     response = client.chat.completions.create(
         model="gpt-4",
         messages=[
-            {"role": "system", "content": "Tu es un expert en immobilier, en estimation et en analyse prédictive du marché."},
+            {
+                "role": "system",
+                "content": (
+                    "Tu es un expert en immobilier en France. "
+                    "Tu es capable de faire des estimations précises, des recommandations claires, et des prédictions de marché. "
+                    "Tu utilises les données fournies pour analyser le bien, son emplacement, son état, son prix et ses conditions de vente. "
+                    "Tu n'indiques jamais que tu es une intelligence artificielle. "
+                    "Tu rédiges des analyses expertes, naturelles, humaines, claires et fluides, comme un professionnel du secteur. "
+                    "Tu peux estimer la valeur future d’un bien à 5 ou 10 ans à partir des tendances immobilières et des informations disponibles."
+                )
+            },
             {"role": "user", "content": prompt}
         ],
         max_tokens=min_tokens,
         temperature=0.7,
     )
     return markdown_to_elements(response.choices[0].message.content)
+
 
 def resize_image(image_path, output_path, target_size=(469, 716)):
     from PIL import Image as PILImage
@@ -112,20 +123,33 @@ def generate_estimation():
 
         # Sections du rapport
         sections = [
-            ("Informations personnelles", "Analysez les informations personnelles du client."),
-            ("Informations générales sur le bien", "Analysez les caractéristiques générales du bien indiqué par le client."),
-            ("État général du bien", "Évaluez l'état global du bien, les travaux récents et l'entretien."),
-            ("Équipements et commodités", "Détaillez les équipements présents dans le bien."),
-            ("Environnement et emplacement", f"Faites une analyse du quartier '{city}' et des commodités à proximité."),
-            ("Historique et marché", "Analysez la présence du bien sur le marché, les offres et l'évolution des prix similaires."),
-            ("Caractéristiques spécifiques", "Analysez les caractéristiques comme l'orientation, le DPE, etc."),
-            ("Informations légales", "Passez en revue les documents légaux et contraintes."),
-            ("Prix et conditions de vente", "Analysez le prix souhaité par le client et les conditions."),
-            ("Autres informations", "Analysez les données complémentaires (occupation, dettes, charges)."),
-            ("Estimation IA", f"Donnez une estimation du prix du bien situé à {adresse} dans le quartier {city}, en tenant compte du marché actuel."),
-            ("Analyse prédictive", f"Prévoyez l'évolution de la valeur de ce bien immobilier dans les 5 à 10 ans à venir."),
-            ("Recommandations IA", f"Faites des recommandations personnalisées pour optimiser la vente du bien."),
-        ]
+            ("Informations personnelles", f"Analyse les informations personnelles suivantes : {form_data.get('civilite')} {form_data.get('prenom')} {form_data.get('nom')}, adresse : {form_data.get('adresse_personnelle')}, code postal : {form_data.get('code_postal')}, email : {form_data.get('email')}, téléphone : {form_data.get('telephone')}."),
+    
+            ("Informations générales sur le bien", f"Le bien est un(e) {form_data.get('type_bien')}. Voici les caractéristiques indiquées : {form_data}."),
+
+            ("État général du bien", f"Voici les infos : état général = {form_data.get('etat_general')}, travaux récents = {form_data.get('travaux_recent')}, détails = {form_data.get('travaux_details')}, problèmes connus = {form_data.get('problemes')}."),
+
+            ("Équipements et commodités", f"Équipements renseignés : cuisine/SDB = {form_data.get('equipement_cuisine')}, électroménager = {form_data.get('electromenager')}, sécurité = {form_data.get('securite')}."),
+
+            ("Environnement et emplacement", f"Adresse : {form_data.get('adresse')} - Quartier : {form_data.get('quartier')} - Atouts : {form_data.get('atouts_quartier')} - Commerces : {form_data.get('distance_commerces')}."),
+
+            ("Historique et marché", f"Temps sur le marché : {form_data.get('temps_marche')} - Offres : {form_data.get('offres')} - Raison : {form_data.get('raison_vente')} - Prix similaires : {form_data.get('prix_similaires')}."),
+
+            ("Caractéristiques spécifiques", f"DPE : {form_data.get('dpe')} - Orientation : {form_data.get('orientation')} - Vue : {form_data.get('vue')}."),
+
+            ("Informations légales", f"Contraintes : {form_data.get('contraintes')} - Documents à jour : {form_data.get('documents')} - Charges de copropriété : {form_data.get('charges_copro')}."),
+
+            ("Prix et conditions de vente", f"Prix envisagé : {form_data.get('prix')} - Négociable : {form_data.get('negociation')} - Conditions particulières : {form_data.get('conditions')}."),
+
+            ("Autres informations", f"Occupation : {form_data.get('occupe')} - Dettes : {form_data.get('dettes')} - Charges fixes : {form_data.get('charges_fixes')}."),
+
+            ("Estimation IA", f"Estime le prix du bien situé à {form_data.get('adresse')} ({form_data.get('quartier')}), selon les infos fournies : {form_data}."),
+
+            ("Analyse prédictive", f"Prédiction : comment évoluera ce bien ({form_data.get('type_bien')}) dans les 5 à 10 prochaines années dans le quartier de {form_data.get('quartier')} ?"),
+
+            ("Recommandations IA", f"Que recommandes-tu à ce client pour mieux vendre ce bien ({form_data.get('type_bien')}) ?"),
+]
+
 
         for title, prompt in sections:
             add_section_title(elements, title)
