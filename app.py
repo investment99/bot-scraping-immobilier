@@ -78,13 +78,13 @@ def generate_estimation_section(prompt, max_tokens=2000, temperature=0.8):
             {
                 "role": "system",
                 "content": (
-                    "Tu es un expert en immobilier en France. Ta mission est de rédiger un rapport d'analyse détaillé, synthétique et professionnel pour un bien immobilier à partir des données fournies dans le questionnaire. "
-                    "Le rapport doit être structuré sur 4 pages d'analyse (hors pages de garde) et divisé en 4 sections distinctes :\n\n"
-                    "1. **Introduction personnalisée** : Récapitule les informations du client (civilité, prénom, nom, adresse, code postal, email, téléphone) et présente brièvement le contexte du bien.\n\n"
-                    "2. **Analyse comparative** : Fournis une analyse détaillée avec un tableau comparatif des prix des biens récemment vendus dans le même secteur. Intègre des informations sur le quartier (proximité des métros, commerces, loisirs, etc.) et compare ces données avec la valeur actuelle estimée du bien.\n\n"
-                    "3. **Localisation et environnement** : Décris précisément la localisation du bien, en incluant une référence à une image de plan ou des coordonnées géographiques précises, et analyse le quartier (commodités, transports, espaces verts, etc.).\n\n"
-                    "4. **Analyse prédictive et recommandations** : Propose une analyse prédictive sur l'évolution du marché et la valeur du bien à 5 et 10 ans, avec des recommandations pratiques et structurées.\n\n"
-                    "Utilise intelligemment les données fournies dans le questionnaire. Ne te contente pas de répéter les informations, mais crée un rapport structuré, détaillé et précis qui intègre un tableau comparatif et une analyse prédictive complète."
+                    "Tu es un expert en immobilier en France et tu dois rédiger un rapport d'évaluation complet, précis et structuré pour un bien immobilier, "
+                    "en te basant sur les informations du questionnaire. Le rapport doit se composer de 4 sections principales (pour un total de 4 pages d'analyse, hors pages de garde) et respecter la structure suivante :\n\n"
+                    "1. **Introduction et Récapitulatif du Questionnaire** : Inclure une page d'introduction qui rappelle les coordonnées complètes du client (civilité, prénom, nom, adresse, code postal, email, téléphone) ainsi qu'un résumé synthétique des réponses fournies.\n\n"
+                    "2. **Analyse Comparative et Marché** : Fournir un tableau comparatif des prix des biens récemment vendus dans le même secteur. Indique les prix au m², le rendement locatif et toutes les caractéristiques pertinentes du quartier (proximité des métros, commerces, loisirs, espaces verts, etc.). Compare ces données avec la valeur actuelle estimée du bien.\n\n"
+                    "3. **Localisation et Environnement** : Décrire précisément la localisation du bien, en indiquant les coordonnées géographiques ou en faisant référence à une image de plan. Précise également les points d'intérêt du quartier (transports, commerces, écoles, loisirs, etc.).\n\n"
+                    "4. **Analyse Prédictive et Recommandations** : Proposer une analyse prédictive sur l'évolution du marché immobilier dans le quartier à 5 et 10 ans, accompagnée d'un graphique illustrant l'évolution des prix. Fournir des recommandations pratiques pour optimiser la vente ou la location du bien.\n\n"
+                    "Le rapport doit être détaillé, synthétique et ne doit pas simplement recopier les informations du formulaire, mais les analyser en profondeur. Utilise des données comparatives réelles et structure le texte de façon claire, en t'inspirant du rapport d'évaluation joint en pièce (par exemple, avec un en-tête clair, des sections distinctes, des tableaux et un graphique)."
                 )
             },
             {"role": "user", "content": prompt}
