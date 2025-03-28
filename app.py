@@ -12,14 +12,15 @@ from openai import OpenAI
 from markdown2 import markdown as md_to_html
 from bs4 import BeautifulSoup
 
+# 🔧 Initialisation de Flask
 app = Flask(__name__)
 CORS(app)
 
+# 🔐 Client OpenAI
 client = OpenAI()
 
 PDF_FOLDER = "./pdf_reports/"
 os.makedirs(PDF_FOLDER, exist_ok=True)
-
 
 def markdown_to_elements(md_text):
     elements = []
