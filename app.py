@@ -1,212 +1,138 @@
-import psycopg2
-import requests
-from flask import Flask, request, jsonify
-from flask_cors import CORS
+from flask import request, send_file, jsonify
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, PageBreak, Table, TableStyle
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import cm
+from reportlab.lib import colors
+from datetime import datetime
 import os
-from dotenv import load_dotenv
-import traceback
-import csv
-import openai
-import logging
-from functools import wraps
+import tempfile
+from openai import OpenAI
+from markdown2 import markdown as md_to_html
+from bs4 import BeautifulSoup
 
-load_dotenv()
+client = OpenAI()
 
-# Configuration du logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+PDF_FOLDER = "./pdf_reports/"
+os.makedirs(PDF_FOLDER, exist_ok=True)
 
-app = Flask(__name__)
-CORS(app, origins=["https://p-i-investment.com"])
+def markdown_to_elements(md_text):
+    elements = []
+    html_content = md_to_html(md_text, extras=["tables"])
+    soup = BeautifulSoup(html_content, "html.parser")
+    styles = getSampleStyleSheet()
+    PAGE_WIDTH = A4[0] - 4 * cm
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-client = openai.OpenAI()
+    for elem in soup.contents:
+        if elem.name == "table":
+            table_data = []
+            for row in elem.find_all("tr"):
+                row_data = [Paragraph(cell.get_text(strip=True), styles['BodyText']) for cell in row.find_all(["td", "th"])]
+                table_data.append(row_data)
+            col_count = len(table_data[0]) if table_data and table_data[0] else 1
+            col_width = PAGE_WIDTH / col_count
+            table_style = TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+            ])
+            table = Table(table_data, colWidths=[col_width] * col_count, style=table_style)
+            elements.append(table)
+        elif elem.name:
+            paragraph = Paragraph(elem.get_text(strip=True), styles['BodyText'])
+            elements.append(paragraph)
+            elements.append(Spacer(1, 12))
+    return elements
 
-def connect_db():
-    try:
-        db_url = os.getenv("DATABASE_URL")
-        if not db_url:
-            raise ValueError("❌ DATABASE_URL non configurée")
-        logging.info("Connexion à la base de données en cours...")
-        return psycopg2.connect(db_url)
-    except Exception as e:
-        logging.error(f"❌ Erreur connexion DB : {e}")
-        return None
-
-def error_handler(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        try:
-            return f(*args, **kwargs)
-        except Exception as e:
-            logging.error(f"❌ Erreur dans {f.__name__} : {e}")
-            traceback.print_exc()
-            return jsonify({"error": f"Une erreur s'est produite: {str(e)}"}), 500
-    return decorated_function
-
-@app.route('/')
-def home():
-    logging.info("API Flask fonctionne correctement !")
-    return "✅ API Flask fonctionne correctement !"
-
-@app.route('/search_openai', methods=['POST'])
-@error_handler
-def search_openai():
-    data = request.get_json(force=True, silent=True)
-    query = data.get("query")
-    
-    if not query:
-        logging.warning("Aucun mot-clé fourni")
-        return jsonify({"error": "❌ Aucun mot-clé fourni"}), 400
-    
-    logging.info(f"Requête OpenAI pour la recherche : {query}")
-    response = client.chat.completions.create(
-        model="gpt-4",
-        messages=[
-            {"role": "system", "content": "Tu es un expert en génération de prospects."},
-            {"role": "user", "content": f"""identifie les sites et forums , les reeaux , qui posent des questions sur l’investissement immobilier,l’achat de biens locatifs, la défiscalisation, ou l’investissement patrimonial.
-, et toute autre information pertinente (type d’investissement recherché, budget estimé, localisation souhaitée).
-Exclue les faux profils, les publicités et les sources non crédibles. Priorise les forums et groupes spécialisés (LinkedIn, Facebook, Reddit, forums immobiliers, sites d’investissement).
-."""}
-        ]
+def add_section_title(elements, title):
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'SectionTitle',
+        fontSize=16,
+        fontName='Helvetica',
+        textColor=colors.HexColor("#00C7C4"),
+        alignment=1,
+        spaceAfter=12,
+        underline=True
     )
-    results = [choice.message.content for choice in response.choices]
-    logging.info(f"Résultats OpenAI : {results}")   
-    return jsonify({"results": results}), 200
+    elements.append(Paragraph(title, title_style))
+    elements.append(Spacer(1, 12))
 
-
-@app.route('/analyse_prospects', methods=['POST'])
-@error_handler
-def analyse_prospects():
-    data = request.get_json(force=True, silent=True)
-    prospects = data.get("prospects")
-    
-    if not prospects or len(prospects) == 0:
-        logging.warning("Aucune donnée de prospect reçue.")
-        return jsonify({"error": "❌ Aucune donnée de prospect reçue."}), 400
-    
-    sorted_prospects = []
-    for prospect in prospects:
-        name = prospect['name']
-        company = prospect['company']
-        logging.info(f"Évaluation du prospect : {name} - {company}")
-        
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "Tu es un analyste spécialisé en prospects."},
-                {"role": "user", "content": f"Évalue ce prospect : {name} travaillant pour {company}. Quelle est sa pertinence ?"}
-            ]
-        )
-        
-        score = response.choices[0].message.content.strip()
-        sorted_prospects.append({
-            'name': name,
-            'company': company,
-            'score': score
-        })
-    
-    sorted_prospects.sort(key=lambda x: x['score'], reverse=True)
-    logging.info("Prospects triés et envoyés à l'interface PHP.")
-    return jsonify(sorted_prospects), 200
-
-@app.route('/generate_post', methods=['POST'])
-@error_handler
-def generate_post():
-    data = request.get_json(force=True, silent=True)
-    topic = data.get("topic")
-    
-    if not topic:
-        logging.warning("Aucun sujet fourni")
-        return jsonify({"error": "❌ Aucun sujet fourni"}), 400
-    
-    logging.info(f"Génération d'un post pour le sujet : {topic}")
-    
+def generate_estimation_section(prompt, min_tokens=800):
     response = client.chat.completions.create(
         model="gpt-4",
         messages=[
-            {"role": "system", "content": "tu es un rédacteur expert en marketing digital, spécialisé dans la création de contenus performants pour les réseaux sociaux Facebook, Instagram, LinkedIn, Twitter, TikTok.Ta mission est de rédiger des publications engageantes, virales et optimisées pour chaque plateforme, en fonction des objectifs suivants : Générer de l’engagement likes, commentaires, partages ,Attirer des prospects qualifiés et convertir des clients , Améliorer la notoriété et l’image de marque , Optimiser les taux de clics et d’interactions , Chaque publication doit , Avoir une accroche percutante pour capter l’attention dès les premières secondes ,Utiliser un ton adapté à l’audience ciblée professionnel, amical, humoristique, inspirant , Contenir des mots-clés stratégiques et des hashtags pertinents , Être structurée de manière claire et dynamique phrases courtes, emojis si nécessaire, call-to-action puissant ,Être optimisée en fonction des algorithmes des réseaux sociaux."},
-            {"role": "user", "content": f"Générer un post sur le sujet : {topic}"}
-        ]
-    )
-    
-    generated_post = response.choices[0].message.content.strip()
-    logging.info("Post généré avec succès")
-    return jsonify({"generated_post": generated_post}), 200
-
-@app.route('/test_db', methods=['GET'])
-def test_db():
-    conn = connect_db()
-    if conn:
-        logging.info("Connexion à la DB réussie")
-        return jsonify({"message": "✅ Connexion à la DB réussie !"}), 200
-    else:
-        logging.error("Impossible de se connecter à la base de données.")
-        return jsonify({"error": "❌ Impossible de se connecter à la base de données."}), 500
-
-@app.route('/generate_image', methods=['POST'])
-@error_handler
-def generate_image():
-    data = request.get_json(force=True, silent=True)
-    topic = data.get("topic")
-    size = data.get("size", "1024x1024")  # Taille par défaut
-
-    if not topic:
-        logging.warning("Aucun sujet fourni")
-        return jsonify({"error": "❌ Aucun sujet fourni"}), 400
-
-    logging.info(f"Génération d'une image pour le sujet : {topic} avec taille {size}")
-
-    try:
-        client = openai.OpenAI(api_key=OPENAI_API_KEY)
-        response = client.images.generate(
-            model="dall-e-2",
-            prompt=f"Crée une image professionnelle et impactante, parfaitement adaptée à un post sur les réseaux sociaux. L’image doit être en haute qualité (HD), optimisée pour LinkedIn, Facebook, Instagram et Twitter, avec un design moderne, épuré et engageant qui illustre le sujet suivant : {topic}. L'image doit refléter un design contemporain, avec des couleurs harmonieuses et un style épuré.",
-            n=1,
-            size=size
-        )
-        image_url = response.data[0].url
-        logging.info("✅ Image générée avec succès")
-        return jsonify({"image_url": image_url}), 200
-
-    except Exception as e:
-        logging.error(f"❌ Erreur lors de la génération de l'image : {e}")
-        return jsonify({"error": f"Une erreur s'est produite: {str(e)}"}), 500
-
-
-@app.route('/best_time', methods=['POST'])
-@error_handler
-def best_time():
-    data = request.get_json(force=True, silent=True)
-    audience = data.get("audience")
-    content_type = data.get("content_type")
-    network = data.get("network")
-    
-    if not audience or not content_type or not network:
-        logging.warning("Données insuffisantes pour calculer la meilleure heure")
-        return jsonify({"error": "Veuillez renseigner l'audience, le type de contenu et le réseau social."}), 400
-
-    prompt = f"""En tenant compte des informations suivantes :
-Audience: {audience}
-Type de contenu: {content_type}
-Réseau social: {network}
-
-Quelle est la meilleure heure aujourd'hui pour publier ce contenu sur ce réseau social ?
-Donne-moi une réponse précise et justifiée."""
-    
-    response = client.chat.completions.create(
-        model="gpt-4",
-        messages=[
-            {"role": "system", "content": "Tu es un expert en réseaux sociaux et marketing."},
+            {"role": "system", "content": "Tu es un expert en immobilier, en estimation et en analyse prédictive du marché."},
             {"role": "user", "content": prompt}
-        ]
+        ],
+        max_tokens=min_tokens,
+        temperature=0.7,
     )
-    best_time_value = response.choices[0].message.content.strip()
-    logging.info(f"Meilleure heure calculée par OpenAI : {best_time_value}")
-    return jsonify({"best_time": best_time_value}), 200
+    return markdown_to_elements(response.choices[0].message.content)
 
+def resize_image(image_path, output_path, target_size=(469, 716)):
+    from PIL import Image as PILImage
+    with PILImage.open(image_path) as img:
+        img = img.resize(target_size, PILImage.LANCZOS)
+        img.save(output_path)
 
+@app.route("/generate_estimation", methods=["POST"])
+def generate_estimation():
+    try:
+        form_data = request.json
+        name = form_data.get("nom", "Client")
+        city = form_data.get("quartier", "Non spécifié")
+        adresse = form_data.get("adresse", "Non spécifiée")
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    logging.info(f"Démarrage du serveur Flask sur le port {port}")
-    app.run(host="0.0.0.0", port=port, debug=True)
+        filename = os.path.join(PDF_FOLDER, f"estimation_{name.replace(' ', '_')}.pdf")
+        doc = SimpleDocTemplate(filename, pagesize=A4, topMargin=2*cm, bottomMargin=2*cm, leftMargin=2*cm, rightMargin=2*cm)
+        elements = []
+
+        # Page de garde
+        covers = ["static/cover_image.png", "static/cover_image1.png"]
+        resized = []
+        for img_path in covers:
+            if os.path.exists(img_path):
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                    resize_image(img_path, tmp.name)
+                    resized.append(tmp.name)
+
+        elements.append(Image(resized[0], width=469, height=716))
+        elements.append(PageBreak())
+
+        # Sections du rapport
+        sections = [
+            ("Informations personnelles", "Analysez les informations personnelles du client."),
+            ("Informations générales sur le bien", "Analysez les caractéristiques générales du bien indiqué par le client."),
+            ("État général du bien", "Évaluez l'état global du bien, les travaux récents et l'entretien."),
+            ("Équipements et commodités", "Détaillez les équipements présents dans le bien."),
+            ("Environnement et emplacement", f"Faites une analyse du quartier '{city}' et des commodités à proximité."),
+            ("Historique et marché", "Analysez la présence du bien sur le marché, les offres et l'évolution des prix similaires."),
+            ("Caractéristiques spécifiques", "Analysez les caractéristiques comme l'orientation, le DPE, etc."),
+            ("Informations légales", "Passez en revue les documents légaux et contraintes."),
+            ("Prix et conditions de vente", "Analysez le prix souhaité par le client et les conditions."),
+            ("Autres informations", "Analysez les données complémentaires (occupation, dettes, charges)."),
+            ("Estimation IA", f"Donnez une estimation du prix du bien situé à {adresse} dans le quartier {city}, en tenant compte du marché actuel."),
+            ("Analyse prédictive", f"Prévoyez l'évolution de la valeur de ce bien immobilier dans les 5 à 10 ans à venir."),
+            ("Recommandations IA", f"Faites des recommandations personnalisées pour optimiser la vente du bien."),
+        ]
+
+        for title, prompt in sections:
+            add_section_title(elements, title)
+            section = generate_estimation_section(prompt)
+            elements.extend(section)
+            elements.append(PageBreak())
+
+        # Page de fin
+        if len(resized) > 1:
+            elements.append(Image(resized[1], width=469, height=716))
+
+        doc.build(elements)
+        return send_file(filename, as_attachment=True)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
