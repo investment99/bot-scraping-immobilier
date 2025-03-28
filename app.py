@@ -78,12 +78,13 @@ def generate_estimation_section(prompt, min_tokens=800):
             {
                 "role": "system",
                 "content": (
-                    "Tu es un expert en immobilier en France. "
-                    "Tu es capable de faire des estimations précises, des recommandations claires, et des prédictions de marché. "
-                    "Tu utilises les données fournies pour analyser le bien, son emplacement, son état, son prix et ses conditions de vente. "
-                    "Tu n'indiques jamais que tu es une intelligence artificielle. "
-                    "Tu rédiges des analyses expertes, naturelles, humaines, claires et fluides, comme un professionnel du secteur. "
-                    "Tu peux estimer la valeur future d’un bien à 5 ou 10 ans à partir des tendances immobilières et des informations disponibles."
+                    "Tu es un expert en immobilier en France. Ta mission est de rédiger un rapport d'analyse détaillé, synthétique et professionnel "
+                    "pour un bien immobilier. Le rapport doit être limité à 5 pages d'analyse (hors pages de garde) et inclure :\n"
+                    "1. Une introduction personnalisée reprenant les informations du client (civilité, prénom, nom, adresse, etc.).\n"
+                    "2. Une comparaison des prix des biens récemment vendus dans le même secteur, avec des tableaux récapitulatifs (prix au m², rendement locatif en pourcentage, etc.).\n"
+                    "3. Des prévisions claires sur l'évolution du marché à 5 et 10 ans.\n"
+                    "4. Une description précise de la localisation du bien sur un plan (par exemple, coordonnées géographiques ou description détaillée de l'emplacement).\n"
+                    "Utilise intelligemment les données fournies et ne te contente pas de les répéter. Sois synthétique et oriente ton analyse vers des recommandations pratiques."
                 )
             },
             {"role": "user", "content": prompt}
@@ -125,7 +126,11 @@ def generate_estimation():
 
         # Sections du rapport
         sections = [
-            ("Informations personnelles", f"Analyse les informations personnelles suivantes : {form_data.get('civilite')} {form_data.get('prenom')} {form_data.get('nom')}, adresse : {form_data.get('adresse_personnelle')}, code postal : {form_data.get('code_postal')}, email : {form_data.get('email')}, téléphone : {form_data.get('telephone')}."),
+            ("Informations personnelles", 
+             f"Commence le rapport par une introduction personnalisée en rappelant les informations suivantes : "
+             f"{form_data.get('civilite')} {form_data.get('prenom')} {form_data.get('nom')}, domicilié(e) à {form_data.get('adresse_personnelle')}, "
+             f"code postal {form_data.get('code_postal')}, email : {form_data.get('email')}, téléphone : {form_data.get('telephone')}. "
+             f"Ensuite, présente brièvement la situation du client."),
             ("Informations générales sur le bien", f"Le bien est un(e) {form_data.get('type_bien')}. Voici les caractéristiques indiquées : {form_data}."),
             ("État général du bien", f"Voici les infos : état général = {form_data.get('etat_general')}, travaux récents = {form_data.get('travaux_recent')}, détails = {form_data.get('travaux_details')}, problèmes connus = {form_data.get('problemes')}."),
             ("Équipements et commodités", f"Équipements renseignés : cuisine/SDB = {form_data.get('equipement_cuisine')}, électroménager = {form_data.get('electromenager')}, sécurité = {form_data.get('securite')}."),
@@ -165,13 +170,13 @@ results_map = {}   # job_id -> chemin du PDF généré
 
 def generate_estimation_background(job_id, form_data):
     try:
-        # Initialisation
+        # Initialisation de la progression de manière graduée
         progress_map[job_id] = 0
-        
-        # Étape 1 : Traitement initial
-        time.sleep(1)  # Simulation
+        time.sleep(0.5)
         progress_map[job_id] = 10
-        
+        time.sleep(0.5)
+        progress_map[job_id] = 20
+
         # Étape 2 : Création du PDF et page de garde
         name = form_data.get("nom", "Client")
         filename = os.path.join(PDF_FOLDER, f"estimation_{name.replace(' ', '_')}_{job_id}.pdf")
@@ -189,11 +194,18 @@ def generate_estimation_background(job_id, form_data):
         if resized:
             elements.append(Image(resized[0], width=469, height=716))
         elements.append(PageBreak())
+        progress_map[job_id] = 30
+        time.sleep(0.5)
         progress_map[job_id] = 40
-        
+
         # Étape 3 : Sections du rapport (avec appel OpenAI)
+        # On personnalise l'introduction dans la première section
         sections = [
-            ("Informations personnelles", f"Analyse les informations personnelles suivantes : {form_data.get('civilite')} {form_data.get('prenom')} {form_data.get('nom')}, adresse : {form_data.get('adresse_personnelle')}, code postal : {form_data.get('code_postal')}, email : {form_data.get('email')}, téléphone : {form_data.get('telephone')}."),
+            ("Informations personnelles", 
+             f"Commence le rapport par une introduction personnalisée en rappelant les informations suivantes : "
+             f"{form_data.get('civilite')} {form_data.get('prenom')} {form_data.get('nom')}, domicilié(e) à {form_data.get('adresse_personnelle')}, "
+             f"code postal {form_data.get('code_postal')}, email : {form_data.get('email')}, téléphone : {form_data.get('telephone')}. "
+             f"Ensuite, présente brièvement la situation du client."),
             ("Informations générales sur le bien", f"Le bien est un(e) {form_data.get('type_bien')}. Voici les caractéristiques indiquées : {form_data}."),
             ("État général du bien", f"Voici les infos : état général = {form_data.get('etat_general')}, travaux récents = {form_data.get('travaux_recent')}, détails = {form_data.get('travaux_details')}, problèmes connus = {form_data.get('problemes')}."),
             ("Équipements et commodités", f"Équipements renseignés : cuisine/SDB = {form_data.get('equipement_cuisine')}, électroménager = {form_data.get('electromenager')}, sécurité = {form_data.get('securite')}."),
@@ -208,19 +220,25 @@ def generate_estimation_background(job_id, form_data):
             ("Recommandations IA", f"Que recommandes-tu à ce client pour mieux vendre ce bien ({form_data.get('type_bien')}) ?"),
         ]
     
+        # Pour chaque section, on incrémente graduellement la progression
         for title, prompt in sections:
             add_section_title(elements, title)
             section = generate_estimation_section(prompt)
             elements.extend(section)
             elements.append(PageBreak())
-    
+            # Incrémentation progressive entre chaque section
+            progress_map[job_id] += 5
+            time.sleep(0.5)
+        
         progress_map[job_id] = 70
+        time.sleep(0.5)
         
         # Étape 4 : Page de fin
         if len(resized) > 1:
             elements.append(Image(resized[1], width=469, height=716))
         
         progress_map[job_id] = 90
+        time.sleep(0.5)
         
         # Finalisation du PDF
         doc.build(elements)
