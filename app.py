@@ -71,21 +71,20 @@ def add_section_title(elements, title):
     elements.append(Paragraph(title, title_style))
     elements.append(Spacer(1, 12))
 
-def generate_estimation_section(prompt, max_tokens=1500, temperature=0.8):
+def generate_estimation_section(prompt, max_tokens=2000, temperature=0.8):
     response = client.chat.completions.create(
         model="gpt-4",
         messages=[
             {
                 "role": "system",
                 "content": (
-                    "Tu es un expert en immobilier en France. Ta mission est de rédiger un rapport d'analyse détaillé, synthétique et professionnel pour un bien immobilier, "
-                    "en te basant sur les informations fournies dans le questionnaire. Le rapport doit être limité à 5 pages d'analyse (hors pages de garde) et inclure :\n"
-                    "1. Une introduction personnalisée qui récapitule le questionnaire et rappelle les coordonnées complètes du client (civilité, prénom, nom, adresse, code postal, email, téléphone).\n"
-                    "2. Une analyse comparative détaillée avec un tableau récapitulatif des prix des biens récemment vendus dans le même secteur et une comparaison avec la valeur actuelle estimée du bien.\n"
-                    "3. Des prévisions claires sur l'évolution du marché à 5 et 10 ans, accompagnées d'un graphique illustrant l'évolution des prix dans le quartier.\n"
-                    "4. Une description précise de la localisation du bien, incluant une référence à une image du plan ou des coordonnées géographiques exactes.\n"
-                    "5. Une analyse prédictive détaillée sur la valeur future du bien, en s'appuyant sur les tendances actuelles et historiques, et incluant des recommandations pratiques.\n"
-                    "Utilise intelligemment les données fournies et ne te contente pas de les répéter. Sois précis, synthétique et oriente ton analyse vers des recommandations concrètes."
+                    "Tu es un expert en immobilier en France. Ta mission est de rédiger un rapport d'analyse détaillé, synthétique et professionnel pour un bien immobilier à partir des données fournies dans le questionnaire. "
+                    "Le rapport doit être structuré sur 4 pages d'analyse (hors pages de garde) et divisé en 4 sections distinctes :\n\n"
+                    "1. **Introduction personnalisée** : Récapitule les informations du client (civilité, prénom, nom, adresse, code postal, email, téléphone) et présente brièvement le contexte du bien.\n\n"
+                    "2. **Analyse comparative** : Fournis une analyse détaillée avec un tableau comparatif des prix des biens récemment vendus dans le même secteur. Intègre des informations sur le quartier (proximité des métros, commerces, loisirs, etc.) et compare ces données avec la valeur actuelle estimée du bien.\n\n"
+                    "3. **Localisation et environnement** : Décris précisément la localisation du bien, en incluant une référence à une image de plan ou des coordonnées géographiques précises, et analyse le quartier (commodités, transports, espaces verts, etc.).\n\n"
+                    "4. **Analyse prédictive et recommandations** : Propose une analyse prédictive sur l'évolution du marché et la valeur du bien à 5 et 10 ans, avec des recommandations pratiques et structurées.\n\n"
+                    "Utilise intelligemment les données fournies dans le questionnaire. Ne te contente pas de répéter les informations, mais crée un rapport structuré, détaillé et précis qui intègre un tableau comparatif et une analyse prédictive complète."
                 )
             },
             {"role": "user", "content": prompt}
@@ -94,6 +93,7 @@ def generate_estimation_section(prompt, max_tokens=1500, temperature=0.8):
         temperature=temperature,
     )
     return markdown_to_elements(response.choices[0].message.content)
+
 
 
 
