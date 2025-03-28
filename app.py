@@ -71,20 +71,21 @@ def add_section_title(elements, title):
     elements.append(Paragraph(title, title_style))
     elements.append(Spacer(1, 12))
 
-def generate_estimation_section(prompt, max_tokens=2000, temperature=0.8):
+def generate_estimation_section(prompt, max_tokens=1500, temperature=0.8):
     response = client.chat.completions.create(
         model="gpt-4",
         messages=[
             {
                 "role": "system",
                 "content": (
-                    "Tu es un expert en immobilier en France et tu dois rédiger un rapport d'évaluation complet, précis et structuré pour un bien immobilier, "
-                    "en te basant sur les informations du questionnaire. Le rapport doit se composer de 4 sections principales (pour un total de 4 pages d'analyse, hors pages de garde) et respecter la structure suivante :\n\n"
-                    "1. **Introduction et Récapitulatif du Questionnaire** : Inclure une page d'introduction qui rappelle les coordonnées complètes du client (civilité, prénom, nom, adresse, code postal, email, téléphone) ainsi qu'un résumé synthétique des réponses fournies.\n\n"
-                    "2. **Analyse Comparative et Marché** : Fournir un tableau comparatif des prix des biens récemment vendus dans le même secteur. Indique les prix au m², le rendement locatif et toutes les caractéristiques pertinentes du quartier (proximité des métros, commerces, loisirs, espaces verts, etc.). Compare ces données avec la valeur actuelle estimée du bien.\n\n"
-                    "3. **Localisation et Environnement** : Décrire précisément la localisation du bien, en indiquant les coordonnées géographiques ou en faisant référence à une image de plan. Précise également les points d'intérêt du quartier (transports, commerces, écoles, loisirs, etc.).\n\n"
-                    "4. **Analyse Prédictive et Recommandations** : Proposer une analyse prédictive sur l'évolution du marché immobilier dans le quartier à 5 et 10 ans, accompagnée d'un graphique illustrant l'évolution des prix. Fournir des recommandations pratiques pour optimiser la vente ou la location du bien.\n\n"
-                    "Le rapport doit être détaillé, synthétique et ne doit pas simplement recopier les informations du formulaire, mais les analyser en profondeur. Utilise des données comparatives réelles et structure le texte de façon claire, en t'inspirant du rapport d'évaluation joint en pièce (par exemple, avec un en-tête clair, des sections distinctes, des tableaux et un graphique)."
+                    "Tu es un expert en immobilier en France. Ta mission est de rédiger un rapport d'analyse détaillé, synthétique et professionnel pour un bien immobilier, "
+                    "en te basant sur les informations fournies dans le questionnaire. Le rapport doit être limité à 5 pages d'analyse (hors pages de garde) et inclure :\n"
+                    "1. Une introduction personnalisée qui récapitule le questionnaire et rappelle les coordonnées complètes du client (civilité, prénom, nom, adresse, code postal, email, téléphone).\n"
+                    "2. Une analyse comparative détaillée avec un tableau récapitulatif des prix des biens récemment vendus dans le même secteur et une comparaison avec la valeur actuelle estimée du bien.\n"
+                    "3. Des prévisions claires sur l'évolution du marché à 5 et 10 ans, accompagnées d'un graphique illustrant l'évolution des prix dans le quartier.\n"
+                    "4. Une description précise de la localisation du bien, incluant une référence à une image du plan ou des coordonnées géographiques exactes.\n"
+                    "5. Une analyse prédictive détaillée sur la valeur future du bien, en s'appuyant sur les tendances actuelles et historiques, et incluant des recommandations pratiques.\n"
+                    "Utilise intelligemment les données fournies et ne te contente pas de les répéter. Sois précis, synthétique et oriente ton analyse vers des recommandations concrètes."
                 )
             },
             {"role": "user", "content": prompt}
@@ -93,7 +94,6 @@ def generate_estimation_section(prompt, max_tokens=2000, temperature=0.8):
         temperature=temperature,
     )
     return markdown_to_elements(response.choices[0].message.content)
-
 
 
 
