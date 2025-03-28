@@ -1,4 +1,5 @@
-from flask import request, send_file, jsonify
+from flask import Flask, request, send_file, jsonify
+from flask_cors import CORS
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, PageBreak, Table, TableStyle
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -11,10 +12,14 @@ from openai import OpenAI
 from markdown2 import markdown as md_to_html
 from bs4 import BeautifulSoup
 
+app = Flask(__name__)
+CORS(app)
+
 client = OpenAI()
 
 PDF_FOLDER = "./pdf_reports/"
 os.makedirs(PDF_FOLDER, exist_ok=True)
+
 
 def markdown_to_elements(md_text):
     elements = []
