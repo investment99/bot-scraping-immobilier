@@ -142,3 +142,13 @@ def generate_estimation():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# ✅ Fin du fichier : routes de base pour test Render
+@app.route("/")
+def home():
+    return "✅ API d’estimation immobilière opérationnelle !"
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    print(f"✅ Démarrage de l'API sur le port {port}")
+    app.run(host="0.0.0.0", port=port)
