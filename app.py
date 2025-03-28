@@ -8,6 +8,9 @@ from reportlab.lib import colors
 from datetime import datetime
 import os
 import tempfile
+import threading
+import time
+import uuid
 from openai import OpenAI
 from markdown2 import markdown as md_to_html
 from bs4 import BeautifulSoup
@@ -90,7 +93,6 @@ def generate_estimation_section(prompt, min_tokens=800):
     )
     return markdown_to_elements(response.choices[0].message.content)
 
-
 def resize_image(image_path, output_path, target_size=(469, 716)):
     from PIL import Image as PILImage
     with PILImage.open(image_path) as img:
@@ -124,32 +126,19 @@ def generate_estimation():
         # Sections du rapport
         sections = [
             ("Informations personnelles", f"Analyse les informations personnelles suivantes : {form_data.get('civilite')} {form_data.get('prenom')} {form_data.get('nom')}, adresse : {form_data.get('adresse_personnelle')}, code postal : {form_data.get('code_postal')}, email : {form_data.get('email')}, téléphone : {form_data.get('telephone')}."),
-    
             ("Informations générales sur le bien", f"Le bien est un(e) {form_data.get('type_bien')}. Voici les caractéristiques indiquées : {form_data}."),
-
             ("État général du bien", f"Voici les infos : état général = {form_data.get('etat_general')}, travaux récents = {form_data.get('travaux_recent')}, détails = {form_data.get('travaux_details')}, problèmes connus = {form_data.get('problemes')}."),
-
             ("Équipements et commodités", f"Équipements renseignés : cuisine/SDB = {form_data.get('equipement_cuisine')}, électroménager = {form_data.get('electromenager')}, sécurité = {form_data.get('securite')}."),
-
             ("Environnement et emplacement", f"Adresse : {form_data.get('adresse')} - Quartier : {form_data.get('quartier')} - Atouts : {form_data.get('atouts_quartier')} - Commerces : {form_data.get('distance_commerces')}."),
-
             ("Historique et marché", f"Temps sur le marché : {form_data.get('temps_marche')} - Offres : {form_data.get('offres')} - Raison : {form_data.get('raison_vente')} - Prix similaires : {form_data.get('prix_similaires')}."),
-
             ("Caractéristiques spécifiques", f"DPE : {form_data.get('dpe')} - Orientation : {form_data.get('orientation')} - Vue : {form_data.get('vue')}."),
-
             ("Informations légales", f"Contraintes : {form_data.get('contraintes')} - Documents à jour : {form_data.get('documents')} - Charges de copropriété : {form_data.get('charges_copro')}."),
-
             ("Prix et conditions de vente", f"Prix envisagé : {form_data.get('prix')} - Négociable : {form_data.get('negociation')} - Conditions particulières : {form_data.get('conditions')}."),
-
             ("Autres informations", f"Occupation : {form_data.get('occupe')} - Dettes : {form_data.get('dettes')} - Charges fixes : {form_data.get('charges_fixes')}."),
-
             ("Estimation IA", f"Estime le prix du bien situé à {form_data.get('adresse')} ({form_data.get('quartier')}), selon les infos fournies : {form_data}."),
-
             ("Analyse prédictive", f"Prédiction : comment évoluera ce bien ({form_data.get('type_bien')}) dans les 5 à 10 prochaines années dans le quartier de {form_data.get('quartier')} ?"),
-
             ("Recommandations IA", f"Que recommandes-tu à ce client pour mieux vendre ce bien ({form_data.get('type_bien')}) ?"),
-]
-
+        ]
 
         for title, prompt in sections:
             add_section_title(elements, title)
@@ -166,6 +155,106 @@ def generate_estimation():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# ==============================
+# Endpoints pour génération asynchrone avec progression réelle
+# ==============================
+
+progress_map = {}  # job_id -> progression (0-100)
+results_map = {}   # job_id -> chemin du PDF généré
+
+def generate_estimation_background(job_id, form_data):
+    try:
+        # Initialisation
+        progress_map[job_id] = 0
+        
+        # Étape 1 : Traitement initial
+        time.sleep(1)  # Simulation
+        progress_map[job_id] = 10
+        
+        # Étape 2 : Création du PDF et page de garde
+        name = form_data.get("nom", "Client")
+        filename = os.path.join(PDF_FOLDER, f"estimation_{name.replace(' ', '_')}_{job_id}.pdf")
+        doc = SimpleDocTemplate(filename, pagesize=A4, topMargin=2*cm, bottomMargin=2*cm, leftMargin=2*cm, rightMargin=2*cm)
+        elements = []
+        
+        covers = ["static/cover_image.png", "static/cover_image1.png"]
+        resized = []
+        for img_path in covers:
+            if os.path.exists(img_path):
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                    resize_image(img_path, tmp.name)
+                    resized.append(tmp.name)
+                    
+        if resized:
+            elements.append(Image(resized[0], width=469, height=716))
+        elements.append(PageBreak())
+        progress_map[job_id] = 40
+        
+        # Étape 3 : Sections du rapport (avec appel OpenAI)
+        sections = [
+            ("Informations personnelles", f"Analyse les informations personnelles suivantes : {form_data.get('civilite')} {form_data.get('prenom')} {form_data.get('nom')}, adresse : {form_data.get('adresse_personnelle')}, code postal : {form_data.get('code_postal')}, email : {form_data.get('email')}, téléphone : {form_data.get('telephone')}."),
+            ("Informations générales sur le bien", f"Le bien est un(e) {form_data.get('type_bien')}. Voici les caractéristiques indiquées : {form_data}."),
+            ("État général du bien", f"Voici les infos : état général = {form_data.get('etat_general')}, travaux récents = {form_data.get('travaux_recent')}, détails = {form_data.get('travaux_details')}, problèmes connus = {form_data.get('problemes')}."),
+            ("Équipements et commodités", f"Équipements renseignés : cuisine/SDB = {form_data.get('equipement_cuisine')}, électroménager = {form_data.get('electromenager')}, sécurité = {form_data.get('securite')}."),
+            ("Environnement et emplacement", f"Adresse : {form_data.get('adresse')} - Quartier : {form_data.get('quartier')} - Atouts : {form_data.get('atouts_quartier')} - Commerces : {form_data.get('distance_commerces')}."),
+            ("Historique et marché", f"Temps sur le marché : {form_data.get('temps_marche')} - Offres : {form_data.get('offres')} - Raison : {form_data.get('raison_vente')} - Prix similaires : {form_data.get('prix_similaires')}."),
+            ("Caractéristiques spécifiques", f"DPE : {form_data.get('dpe')} - Orientation : {form_data.get('orientation')} - Vue : {form_data.get('vue')}."),
+            ("Informations légales", f"Contraintes : {form_data.get('contraintes')} - Documents à jour : {form_data.get('documents')} - Charges de copropriété : {form_data.get('charges_copro')}."),
+            ("Prix et conditions de vente", f"Prix envisagé : {form_data.get('prix')} - Négociable : {form_data.get('negociation')} - Conditions particulières : {form_data.get('conditions')}."),
+            ("Autres informations", f"Occupation : {form_data.get('occupe')} - Dettes : {form_data.get('dettes')} - Charges fixes : {form_data.get('charges_fixes')}."),
+            ("Estimation IA", f"Estime le prix du bien situé à {form_data.get('adresse')} ({form_data.get('quartier')}), selon les infos fournies : {form_data}."),
+            ("Analyse prédictive", f"Prédiction : comment évoluera ce bien ({form_data.get('type_bien')}) dans les 5 à 10 prochaines années dans le quartier de {form_data.get('quartier')} ?"),
+            ("Recommandations IA", f"Que recommandes-tu à ce client pour mieux vendre ce bien ({form_data.get('type_bien')}) ?"),
+        ]
+    
+        for title, prompt in sections:
+            add_section_title(elements, title)
+            section = generate_estimation_section(prompt)
+            elements.extend(section)
+            elements.append(PageBreak())
+    
+        progress_map[job_id] = 70
+        
+        # Étape 4 : Page de fin
+        if len(resized) > 1:
+            elements.append(Image(resized[1], width=469, height=716))
+        
+        progress_map[job_id] = 90
+        
+        # Finalisation du PDF
+        doc.build(elements)
+        progress_map[job_id] = 100
+        results_map[job_id] = filename
+        
+    except Exception as e:
+        progress_map[job_id] = -1
+        results_map[job_id] = None
+
+@app.route("/start_estimation", methods=["POST"])
+def start_estimation():
+    form_data = request.json or {}
+    job_id = str(uuid.uuid4())
+    thread = threading.Thread(target=generate_estimation_background, args=(job_id, form_data))
+    thread.start()
+    return jsonify({"job_id": job_id})
+
+@app.route("/progress", methods=["GET"])
+def get_progress():
+    job_id = request.args.get("job_id")
+    if not job_id or job_id not in progress_map:
+        return jsonify({"error": "Job introuvable"}), 404
+    return jsonify({"progress": progress_map[job_id]})
+
+@app.route("/download_estimation", methods=["GET"])
+def download_estimation():
+    job_id = request.args.get("job_id")
+    if not job_id or job_id not in results_map:
+        return jsonify({"error": "Job introuvable"}), 404
+    pdf_path = results_map[job_id]
+    if not pdf_path or not os.path.exists(pdf_path):
+        return jsonify({"error": "PDF introuvable ou non généré"}), 404
+    return send_file(pdf_path, as_attachment=True)
 
 # ✅ Fin du fichier : routes de base pour test Render
 @app.route("/")
