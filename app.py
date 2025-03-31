@@ -157,7 +157,19 @@ def load_dvf_data_avance(form_data):
         code_postal = str(form_data.get("code_postal", "")).zfill(5)
         adresse = form_data.get("adresse", "").lower()
         type_bien = form_data.get("type_bien", "").capitalize()
-        surface_bien = float(form_data.get("surface", 0))
+        # 🔍 Récupération intelligente de la surface selon le type de bien
+        surface_bien = 0
+        try:
+            if form_data.get("type_bien") == "maison":
+                surface_bien = float(form_data.get("maison_surface", 0))
+            elif form_data.get("type_bien") == "appartement":
+                surface_bien = float(form_data.get("app_surface", 0))
+            elif form_data.get("type_bien") == "terrain":
+                surface_bien = float(form_data.get("terrain_surface", 0))
+        except ValueError:
+            logging.warning("⚠️ Surface invalide ou non renseignée, filtrage DVF large appliqué.")
+            surface_bien = 0
+
 
         dept_code = code_postal[:2]
         file_path_gz = os.path.join(DVF_FOLDER, f"{dept_code}.csv.gz")
