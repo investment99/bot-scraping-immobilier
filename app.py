@@ -188,7 +188,9 @@ def load_dvf_data_avance(form_data):
             df = df[df["type_local"] == type_bien]
 
         if adresse:
-            df = df[df["adresse"].str.lower().str.contains(adresse.split()[0], na=False)]
+            mots = adresse.lower().split()
+            df = df[df["adresse"].notna()]
+            df = df[df["adresse"].apply(lambda x: any(mot in x.lower() for mot in mots))]
 
         df = df[(df["surface_reelle_bati"] > 10) & (df["valeur_fonciere"] > 1000)]
         if surface_bien > 0:
