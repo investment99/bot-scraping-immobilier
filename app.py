@@ -151,8 +151,8 @@ def load_dvf_data_avance(form_data):
 def get_dvf_comparables(form_data):
     try:
         df, error = load_dvf_data_avance(form_data)
-      if error or df is None or df.empty:
-      return f"Données indisponibles pour cette estimation. Erreur : {error or 'Pas de données.'}"
+        if error or df is None or df.empty:
+            return f"Données indisponibles pour cette estimation. Erreur : {error or 'Pas de données.'}"
 
         df["prix_m2"] = df["Valeur fonciere"] / df["Surface reelle bati"]
         df = df.sort_values(by="Date mutation", ascending=False).head(10)
