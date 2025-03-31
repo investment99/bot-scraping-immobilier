@@ -256,7 +256,7 @@ def generate_dvf_chart(form_data):
             logging.error("❌ La colonne 'code_postal' est absente du fichier après normalisation.")
             return None
 
-        df["code_postal"] = df["code_postal"].astype(str).str.zfill(5)
+        df["code_postal"] = df["code_postal"].str.strip()
         df = df[df["code_postal"] == code_postal]
         df = df[df["type_local"].isin(["Appartement", "Maison"])]
         df = df[(df["surface_reelle_bati"] > 10) & (df["valeur_fonciere"] > 1000)]
