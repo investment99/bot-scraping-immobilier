@@ -309,7 +309,6 @@ def generate_estimation():
         add_simple_table_of_contents(elements)
 
         # Ajout d'un sommaire (facultatif)
-        add_simple_table_of_contents(elements)
 
         # Sections manuelles pour la version synchrone
         sections = [
