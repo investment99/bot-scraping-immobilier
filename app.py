@@ -107,16 +107,69 @@ def resize_image(image_path, output_path, target_size=(469, 716)):
         img.save(output_path)
 
 ### Nouvelle fonction : Extraction DVF et création du tableau comparatif
-def get_dvf_comparables(form_data):
+# 🔍 Fonction améliorée pour charger les données DVF avec plusieurs critères
+def load_dvf_data_avance(form_data):
     try:
         code_postal = str(form_data.get("code_postal", "")).zfill(5)
-        if not code_postal or not code_postal.isdigit() or len(code_postal) < 2:
-            return "Aucune donnée DVF trouvée pour ce code postal."
-        
-        dept_code = code_postal[:2]  # ex : "06" pour code postal "06000"
-        dvf_path = os.path.join(DVF_FOLDER, f"{dept_code}.csv.gz")
-        if not os.path.exists(dvf_path):
-            return f"Aucune donnée DVF disponible pour le département {dept_code}."
+        adresse = form_data.get("adresse", "").lower()
+        type_bien = form_data.get("type_bien", "").capitalize()
+        surface_bien = float(form_data.get("surface", 0))
+
+        dept_code = code_postal[:2]
+        file_path_gz = os.path.join(DVF_FOLDER, f"{dept_code}.csv.gz")
+        file_path_csv = os.path.join(DVF_FOLDER, f"{dept_code}.csv")
+
+        if os.path.exists(file_path_gz):
+            df = pd.read_csv(file_path_gz, sep="|", dtype={"code_postal": str}, low_memory=False)
+        elif os.path.exists(file_path_csv):
+            df = pd.read_csv(file_path_csv, sep="|", dtype={"code_postal": str}, low_memory=False)
+        else:
+            return None, f"Aucun fichier trouvé pour le département {dept_code}."
+
+        df = df[df["code_postal"] == code_postal]
+        df = df[df["Type local"].isin(["Appartement", "Maison"])]
+
+        # Filtrage par type de bien
+        if type_bien in ["Appartement", "Maison"]:
+            df = df[df["Type local"] == type_bien]
+
+        # Filtrage souple par adresse
+        if adresse:
+            df = df[df["Adresse"].str.lower().str.contains(adresse.split()[0], na=False)]
+
+        df = df[(df["Surface reelle bati"] > 10) & (df["Valeur fonciere"] > 1000)]
+        if surface_bien > 0:
+            df = df[df["Surface reelle bati"].between(surface_bien * 0.7, surface_bien * 1.3)]
+
+        df["prix_m2"] = df["Valeur fonciere"] / df["Surface reelle bati"]
+        df = df.sort_values(by="Date mutation", ascending=False)
+
+        return df, None
+    except Exception as e:
+        return None, f"Erreur lors du chargement avancé des données DVF : {str(e)}"
+
+def get_dvf_comparables(form_data):
+    try:
+        df = load_dvf_data_avance(form_data)
+        if df is None or df.empty:
+            return "Aucune donnée DVF trouvée pour cette estimation."
+
+        df["prix_m2"] = df["Valeur fonciere"] / df["Surface reelle bati"]
+        df = df.sort_values(by="Date mutation", ascending=False).head(10)
+
+        table_md = "| Adresse | Surface (m²) | Prix (€) | Prix/m² (€) |\n"
+        table_md += "|---|---|---|---|\n"
+        for _, row in df.iterrows():
+            adresse = row.get("Adresse", "")
+            surface = row.get("Surface reelle bati", 0)
+            valeur = row.get("Valeur fonciere", 0)
+            prix_m2 = row.get("prix_m2", 0)
+            table_md += f"| {adresse} | {surface:.0f} | {valeur:.0f} | {prix_m2:.0f} |\n"
+
+        return f"Voici les 10 dernières transactions similaires pour ce secteur :\n\n{table_md}"
+    except Exception as e:
+        return f"Données indisponibles pour cette estimation. Erreur : {str(e)}"
+"
         
         # Lecture du fichier en forçant la colonne code_postal en str
         df = pd.read_csv(dvf_path, sep="|", compression="gzip", dtype={"code_postal": str}, low_memory=False)
