@@ -305,6 +305,8 @@ def generate_estimation():
 
         elements.append(Image(resized[0], width=469, height=716))
         elements.append(PageBreak())
+        # ✅ Sommaire
+        add_simple_table_of_contents(elements)
 
         # Ajout d'un sommaire (facultatif)
         add_simple_table_of_contents(elements)
@@ -334,7 +336,8 @@ def generate_estimation():
             add_section_title(elements, title)
             section = generate_estimation_section(prompt)
             elements.extend(section)
-            elements.append(PageBreak())
+            elements.append(PageBreak())  # ✅ Séparation claire des sections
+
 
         # Page de fin
         if len(resized) > 1:
