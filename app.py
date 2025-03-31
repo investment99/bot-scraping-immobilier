@@ -109,7 +109,7 @@ def resize_image(image_path, output_path, target_size=(469, 716)):
 ### Nouvelle fonction : Extraction DVF et création du tableau comparatif
 def get_dvf_comparables(form_data):
     try:
-        code_postal = str(form_data.get("code_postal", ""))
+        code_postal = str(form_data.get("code_postal", "")).zfill(5)
         if not code_postal or not code_postal.isdigit() or len(code_postal) < 2:
             return "Aucune donnée DVF trouvée pour ce code postal."
         
@@ -120,6 +120,7 @@ def get_dvf_comparables(form_data):
         
         # Lecture du fichier en forçant la colonne code_postal en str
         df = pd.read_csv(dvf_path, sep="|", compression="gzip", dtype={"code_postal": str}, low_memory=False)
+        df["code_postal"] = df["code_postal"].astype(str).str.zfill(5)
         # Filtrage par code postal exact (ici on attend "06000")
         df = df[df["code_postal"] == code_postal]
         df = df[df["Type local"].isin(["Appartement", "Maison"])]
@@ -145,7 +146,7 @@ def get_dvf_comparables(form_data):
 ### Nouvelle fonction : Générer un graphique d'évolution du prix moyen au m²
 def generate_dvf_chart(form_data):
     try:
-        code_postal = str(form_data.get("code_postal", ""))
+        code_postal = str(form_data.get("code_postal", "")).zfill(5)
         if not code_postal or not code_postal.isdigit() or len(code_postal) < 2:
             return None
         
@@ -156,7 +157,7 @@ def generate_dvf_chart(form_data):
         
         # Lecture du fichier en conservant la colonne code_postal en str
         df = pd.read_csv(dvf_path, sep="|", compression="gzip", dtype={"code_postal": str}, low_memory=False)
-        df = df[df["code_postal"] == code_postal]
+        df["code_postal"] = df["code_postal"].astype(str).str.zfill(5)
         df = df[df["Type local"].isin(["Appartement", "Maison"])]
         df = df[(df["Surface reelle bati"] > 10) & (df["Valeur fonciere"] > 1000)]
         df["prix_m2"] = df["Valeur fonciere"] / df["Surface reelle bati"]
@@ -346,38 +347,33 @@ def generate_estimation_background(job_id, form_data):
         
         # Appel unique à OpenAI pour générer l'intégralité du rapport avec données DVF comme base d'analyse
         combined_prompt = (
-            f"Voici des données DVF récentes (tableau comparatif et graphique d'évolution des prix) pour le code postal {form_data.get('code_postal')}.\n"
-            f"Tu dois t'appuyer sur ces données pour réaliser une estimation précise du bien immobilier ci-dessous.\n\n"
-
-            f"Informations personnelles : {form_data.get('civilite')} {form_data.get('prenom')} {form_data.get('nom')}, "
-            f"domicilié(e) à {form_data.get('adresse_personnelle')}, code postal {form_data.get('code_postal')}, "
+            f"# 1. Informations personnelles\n"
+            f"{form_data.get('civilite')} {form_data.get('prenom')} {form_data.get('nom')}, domicilié(e) à "
+            f"{form_data.get('adresse_personnelle')} ({form_data.get('code_postal')}), "
             f"email : {form_data.get('email')}, téléphone : {form_data.get('telephone')}.\n\n"
 
-            f"Le bien est un(e) {form_data.get('type_bien')}. Détails : {form_data}.\n\n"
+            f"# 2. Détails du bien\n"
+            f"Type : {form_data.get('type_bien')} - État : {form_data.get('etat_general')} - Travaux récents : {form_data.get('travaux_recent')} "
+            f"- Détails : {form_data.get('travaux_details')} - Problèmes : {form_data.get('problemes')}.\n"
+            f"Équipements : {form_data.get('equipement_cuisine')}, {form_data.get('electromenager')}, {form_data.get('securite')}.\n"
+            f"Autres : DPE = {form_data.get('dpe')}, Orientation = {form_data.get('orientation')}, Vue = {form_data.get('vue')}.\n\n"
 
-            f"État général : {form_data.get('etat_general')}, travaux récents : {form_data.get('travaux_recent')}, "
-            f"détails : {form_data.get('travaux_details')}, problèmes connus : {form_data.get('problemes')}.\n\n"
+            f"# 3. Environnement & Quartier\n"
+            f"Adresse : {form_data.get('adresse')} - Quartier : {form_data.get('quartier')} - Commerces à proximité : {form_data.get('distance_commerces')} - Atouts : {form_data.get('atouts_quartier')}.\n\n"
 
-            f"Équipements : cuisine/SDB : {form_data.get('equipement_cuisine')}, électroménager : {form_data.get('electromenager')}, sécurité : {form_data.get('securite')}.\n\n"
+            f"# 4. Données DVF (comparatif + graphique)\n"
+            f"Les 10 dernières ventes sont affichées dans le tableau, ainsi que le graphique d'évolution des prix au m² dans le secteur {form_data.get('code_postal')}.\n\n"
+  
+            f"# 5. Estimation et Analyse IA\n"
+            f"Estime la valeur actuelle du bien basé sur les informations ci-dessus.\n"
+            f"Historique du marché : temps sur le marché : {form_data.get('temps_marche')} - offres : {form_data.get('offres')} - "
+            f"raison de vente : {form_data.get('raison_vente')} - prix similaires : {form_data.get('prix_similaires')}.\n"
+            f"Prix visé par le client : {form_data.get('prix')} (négociable : {form_data.get('negociation')}).\n\n"
 
-            f"Emplacement : {form_data.get('adresse')}, quartier : {form_data.get('quartier')}, atouts : {form_data.get('atouts_quartier')}, "
-            f"commerces : {form_data.get('distance_commerces')}.\n\n"
-
-            f"Historique du bien : temps sur le marché : {form_data.get('temps_marche')}, offres : {form_data.get('offres')}, "
-            f"raison de la vente : {form_data.get('raison_vente')}, prix similaires : {form_data.get('prix_similaires')}.\n\n"
-
-            f"Caractéristiques techniques : DPE : {form_data.get('dpe')}, orientation : {form_data.get('orientation')}, vue : {form_data.get('vue')}.\n\n"
-
-            f"Informations légales : contraintes : {form_data.get('contraintes')}, documents à jour : {form_data.get('documents')}, "
-            f"charges de copropriété : {form_data.get('charges_copro')}.\n\n"
-
-            f"Prix et conditions : prix souhaité : {form_data.get('prix')}, négociable : {form_data.get('negociation')}, conditions particulières : {form_data.get('conditions')}.\n\n"
-
-            f"Autres éléments : bien occupé : {form_data.get('occupe')}, dettes : {form_data.get('dettes')}, charges fixes : {form_data.get('charges_fixes')}.\n\n"
-
-            f"⚠️ Important : utilise **prioritairement** les données du tableau et du graphique DVF précédemment affichés pour fonder ton analyse comparative, "
-            f"proposer une estimation réaliste, anticiper les tendances du marché à 5-10 ans et recommander des stratégies au client.\n"
-        )
+            f"# 6. Recommandations\n"
+            f"Conseils pratiques pour améliorer la vente. Bien occupé : {form_data.get('occupe')} - dettes : {form_data.get('dettes')} - charges : {form_data.get('charges_fixes')}.\n"
+            f"⚠️ Utilise **en priorité** les données DVF comparatives et les tendances graphiques pour appuyer ton estimation."
+)
         section = generate_estimation_section(combined_prompt)
         elements.extend(section)
         elements.append(PageBreak())
