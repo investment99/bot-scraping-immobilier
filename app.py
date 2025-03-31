@@ -277,7 +277,6 @@ def generate_dvf_chart(form_data):
             return None
 
         df["code_postal"] = df["code_postal"].str.strip()
-        df = df[df["code_postal"] == code_postal]
         df = df[df["type_local"].isin(["Appartement", "Maison"])]
         df = df[(df["surface_reelle_bati"] > 10) & (df["valeur_fonciere"] > 1000)]
         df["prix_m2"] = df["valeur_fonciere"] / df["surface_reelle_bati"]
