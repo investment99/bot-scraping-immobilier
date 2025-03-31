@@ -119,30 +119,43 @@ def add_section_title(elements, title):
     elements.append(Paragraph(title, title_style))
     elements.append(Spacer(1, 12))
 
-def generate_estimation_section(prompt, min_tokens=800):
+def generate_estimation_section(prompt, min_tokens=1200):
     logging.info("Génération de la section d'estimation avec OpenAI...")
+    
+    # Exemple d'un prompt détaillé :
+    prompt_detaille = f"""
+    Voici les données du bien à estimer :
+
+    - Adresse : {form_data['adresse']}
+    - Type de bien : {form_data['type_bien']}
+    - Surface : {form_data['surface_bien']} m²
+    - Prix actuel du bien : {form_data['prix']}
+    - Dernières transactions dans ce secteur : {form_data['dvf_comparatif']}
+
+    Utilise ces informations pour estimer la valeur actuelle du bien, en tenant compte des facteurs suivants :
+    1. Comparaison des prix au m² dans la zone avec les 10 dernières transactions similaires (données DVF).
+    2. L'évolution récente du marché immobilier dans cette zone, en prenant en compte l'impact des développements futurs et des changements économiques (sources externes).
+    3. Facteurs de correction : âge du bien, état général, équipements.
+    4. Estimation basée sur ces données, avec une analyse de l'évolution possible du prix dans les 5 et 10 prochaines années.
+
+    Donne-moi une estimation complète, détaillée, et justifiée, en intégrant toutes les informations disponibles.
+    """
+
     response = client.chat.completions.create(
         model="gpt-4",
         messages=[
             {
                 "role": "system",
-                "content": (
-                    "Tu es un expert en immobilier en France. Ta mission est de rédiger un rapport d'analyse détaillé, synthétique et professionnel "
-                    "pour un bien immobilier. Le rapport doit être limité à 5 pages d'analyse (hors pages de garde) et inclure :\n"
-                    "1. Une introduction personnalisée reprenant les informations du client (civilité, prénom, nom, adresse, etc.).\n"
-                    "2. Une comparaison des prix des biens récemment vendus dans le même secteur, avec des tableaux récapitulatifs (prix au m², rendement locatif en pourcentage, etc.).\n"
-                    "3. Des prévisions claires sur l'évolution du marché à 5 et 10 ans.\n"
-                    "4. Une description précise de la localisation du bien sur un plan (par exemple, coordonnées géographiques ou description détaillée de l'emplacement).\n"
-                    "Utilise intelligemment les données fournies et ne te contente pas de les répéter. Sois synthétique et oriente ton analyse vers des recommandations pratiques."
-                )
+                "content": "Tu es un expert immobilier en France. Ta mission est d'estimer la valeur d'un bien immobilier en utilisant toutes les données disponibles et de formuler une analyse complète et justifiée."
             },
-            {"role": "user", "content": prompt}
+            {"role": "user", "content": prompt_detaille}
         ],
         max_tokens=min_tokens,
         temperature=0.8,
     )
     logging.info("Section générée par OpenAI.")
     return markdown_to_elements(response.choices[0].message.content)
+
 
 def resize_image(image_path, output_path, target_size=(469, 716)):
     from PIL import Image as PILImage
