@@ -106,8 +106,7 @@ def resize_image(image_path, output_path, target_size=(469, 716)):
         img = img.resize(target_size, PILImage.LANCZOS)
         img.save(output_path)
 
-### Nouvelle fonction : Extraction DVF et création du tableau comparatif
-# 🔍 Fonction améliorée pour charger les données DVF avec plusieurs critères
+### Fonction d'extraction DVF et création du tableau comparatif
 def load_dvf_data_avance(form_data):
     try:
         code_postal = str(form_data.get("code_postal", "")).zfill(5)
@@ -120,35 +119,32 @@ def load_dvf_data_avance(form_data):
         file_path_csv = os.path.join(DVF_FOLDER, f"{dept_code}.csv")
 
         if os.path.exists(file_path_gz):
-            df = pd.read_csv(file_path_gz, sep="|", dtype={"code_postal": str}, low_memory=False)
+            df = pd.read_csv(file_path_gz, sep="|", low_memory=False)
         elif os.path.exists(file_path_csv):
-            df = pd.read_csv(file_path_csv, sep="|", dtype={"code_postal": str}, low_memory=False)
+            df = pd.read_csv(file_path_csv, sep="|", low_memory=False)
         else:
             return None, f"Aucun fichier trouvé pour le département {dept_code}."
 
-        # --- MODIFICATION : Nettoyer les noms de colonnes ---
-        df.columns = [col.strip() for col in df.columns]
-        if "Code postal" in df.columns:
-            df.rename(columns={"Code postal": "code_postal"}, inplace=True)
-        # -------------------------------------------------------
+        # Normalisation de toutes les colonnes (mise en minuscule et remplacement des espaces par des underscores)
+        df.columns = [col.strip().lower().replace(" ", "_") for col in df.columns]
 
         df = df[df["code_postal"] == code_postal]
-        df = df[df["Type local"].isin(["Appartement", "Maison"])]
+        df = df[df["type_local"].isin(["Appartement", "Maison"])]
 
         # Filtrage par type de bien
         if type_bien in ["Appartement", "Maison"]:
-            df = df[df["Type local"] == type_bien]
+            df = df[df["type_local"] == type_bien]
 
         # Filtrage souple par adresse
         if adresse:
-            df = df[df["Adresse"].str.lower().str.contains(adresse.split()[0], na=False)]
+            df = df[df["adresse"].str.lower().str.contains(adresse.split()[0], na=False)]
 
-        df = df[(df["Surface reelle bati"] > 10) & (df["Valeur fonciere"] > 1000)]
+        df = df[(df["surface_reelle_bati"] > 10) & (df["valeur_fonciere"] > 1000)]
         if surface_bien > 0:
-            df = df[df["Surface reelle bati"].between(surface_bien * 0.7, surface_bien * 1.3)]
+            df = df[df["surface_reelle_bati"].between(surface_bien * 0.7, surface_bien * 1.3)]
 
-        df["prix_m2"] = df["Valeur fonciere"] / df["Surface reelle bati"]
-        df = df.sort_values(by="Date mutation", ascending=False)
+        df["prix_m2"] = df["valeur_fonciere"] / df["surface_reelle_bati"]
+        df = df.sort_values(by="date_mutation", ascending=False)
 
         return df, None
     except Exception as e:
@@ -161,15 +157,15 @@ def get_dvf_comparables(form_data):
         if erreur or df is None or df.empty:
             return f"Données indisponibles pour cette estimation. Erreur : {erreur or 'Aucune donnée trouvée.'}"
 
-        df["prix_m2"] = df["Valeur fonciere"] / df["Surface reelle bati"]
-        df = df.sort_values(by="Date mutation", ascending=False).head(10)
+        df["prix_m2"] = df["valeur_fonciere"] / df["surface_reelle_bati"]
+        df = df.sort_values(by="date_mutation", ascending=False).head(10)
 
         table_md = "| Adresse | Surface (m²) | Prix (€) | Prix/m² (€) |\n"
         table_md += "|---|---|---|---|\n"
         for _, row in df.iterrows():
-            adresse = row.get("Adresse", "")
-            surface = row.get("Surface reelle bati", 0)
-            valeur = row.get("Valeur fonciere", 0)
+            adresse = row.get("adresse", "")
+            surface = row.get("surface_reelle_bati", 0)
+            valeur = row.get("valeur_fonciere", 0)
             prix_m2 = row.get("prix_m2", 0)
             table_md += f"| {adresse} | {surface:.0f} | {valeur:.0f} | {prix_m2:.0f} |\n"
 
@@ -177,7 +173,7 @@ def get_dvf_comparables(form_data):
     except Exception as e:
         return f"Données indisponibles pour cette estimation. Erreur : {str(e)}"
 
-### Nouvelle fonction : Générer un graphique d'évolution du prix moyen au m²
+### Génération d'un graphique d'évolution du prix moyen au m²
 def generate_dvf_chart(form_data):
     try:
         code_postal = str(form_data.get("code_postal", "")).zfill(5)
@@ -189,24 +185,19 @@ def generate_dvf_chart(form_data):
         if not os.path.exists(dvf_path):
             return None
         
-        # Lecture du fichier en conservant la colonne code_postal en str
-        df = pd.read_csv(dvf_path, sep="|", compression="gzip", dtype={"code_postal": str}, low_memory=False)
-        # --- MODIFICATION : Nettoyer les noms de colonnes ---
-        df.columns = [col.strip() for col in df.columns]
-        if "Code postal" in df.columns:
-            df.rename(columns={"Code postal": "code_postal"}, inplace=True)
-        # -------------------------------------------------------
+        df = pd.read_csv(dvf_path, sep="|", compression="gzip", low_memory=False)
+        # Normalisation des colonnes
+        df.columns = [col.strip().lower().replace(" ", "_") for col in df.columns]
 
         df["code_postal"] = df["code_postal"].astype(str).str.zfill(5)
-        df = df[df["Type local"].isin(["Appartement", "Maison"])]
-        df = df[(df["Surface reelle bati"] > 10) & (df["Valeur fonciere"] > 1000)]
-        df["prix_m2"] = df["Valeur fonciere"] / df["Surface reelle bati"]
-        df["Date mutation"] = pd.to_datetime(df["Date mutation"], errors="coerce")
-        df = df.dropna(subset=["Date mutation"])
-        df["Année"] = df["Date mutation"].dt.year
-        prix_m2_par_annee = df.groupby("Année")["prix_m2"].mean().round(0)
+        df = df[df["type_local"].isin(["Appartement", "Maison"])]
+        df = df[(df["surface_reelle_bati"] > 10) & (df["valeur_fonciere"] > 1000)]
+        df["prix_m2"] = df["valeur_fonciere"] / df["surface_reelle_bati"]
+        df["date_mutation"] = pd.to_datetime(df["date_mutation"], errors="coerce")
+        df = df.dropna(subset=["date_mutation"])
+        df["année"] = df["date_mutation"].dt.year
+        prix_m2_par_annee = df.groupby("année")["prix_m2"].mean().round(0)
         
-        # Créer le graphique
         plt.figure(figsize=(8, 5))
         prix_m2_par_annee.plot(kind="line", marker="o", title=f"Évolution du prix moyen au m² - {code_postal}")
         plt.ylabel("Prix moyen au m² (€)")
@@ -214,7 +205,6 @@ def generate_dvf_chart(form_data):
         plt.grid(True)
         plt.tight_layout()
         
-        # Sauvegarder dans un fichier temporaire
         tmp_img = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
         plt.savefig(tmp_img.name)
         plt.close()
@@ -293,9 +283,8 @@ def generate_estimation():
 
         elements.append(Image(resized[0], width=469, height=716))
         elements.append(PageBreak())
-        # --- MODIFICATION : Ajout du sommaire ---
+        # Ajout du sommaire
         add_simple_table_of_contents(elements)
-        # -----------------------------------------
 
         # Sections manuelles pour la version synchrone
         sections = [
@@ -322,7 +311,7 @@ def generate_estimation():
             add_section_title(elements, title)
             section = generate_estimation_section(prompt)
             elements.extend(section)
-            elements.append(PageBreak())  # ✅ Séparation claire des sections
+            elements.append(PageBreak())
 
         # Page de fin
         if len(resized) > 1:
@@ -343,12 +332,10 @@ results_map = {}   # job_id -> chemin du PDF généré
 
 def generate_estimation_background(job_id, form_data):
     try:
-        # Version asynchrone : on combine toutes les infos en un prompt unique, et on ajoute le DVF
         progress_map[job_id] = 0
         time.sleep(1)
         progress_map[job_id] = 40
 
-        # Création du PDF et page de garde
         name = form_data.get("nom", "Client")
         filename = os.path.join(PDF_FOLDER, f"estimation_{name.replace(' ', '_')}_{job_id}.pdf")
         doc = SimpleDocTemplate(filename, pagesize=A4, topMargin=2*cm, bottomMargin=2*cm, leftMargin=2*cm, rightMargin=2*cm)
@@ -365,9 +352,8 @@ def generate_estimation_background(job_id, form_data):
         if resized:
             elements.append(Image(resized[0], width=469, height=716))
         elements.append(PageBreak())
-        # --- MODIFICATION : Ajout du sommaire ---
+        # Ajout du sommaire
         add_simple_table_of_contents(elements)
-        # -----------------------------------------
         progress_map[job_id] = 70
         time.sleep(1)
         
@@ -388,7 +374,6 @@ def generate_estimation_background(job_id, form_data):
         progress_map[job_id] = 80
         time.sleep(1)
         
-        # Appel unique à OpenAI pour générer l'intégralité du rapport avec données DVF comme base d'analyse
         combined_prompt = (
             f"# 1. Informations personnelles\n"
             f"{form_data.get('civilite')} {form_data.get('prenom')} {form_data.get('nom')}, domicilié(e) à "
@@ -416,14 +401,13 @@ def generate_estimation_background(job_id, form_data):
             f"# 6. Recommandations\n"
             f"Conseils pratiques pour améliorer la vente. Bien occupé : {form_data.get('occupe')} - dettes : {form_data.get('dettes')} - charges : {form_data.get('charges_fixes')}.\n"
             f"⚠️ Utilise **en priorité** les données DVF comparatives et les tendances graphiques pour appuyer ton estimation."
-)
+        )
         section = generate_estimation_section(combined_prompt)
         elements.extend(section)
         elements.append(PageBreak())
         progress_map[job_id] = 90
         time.sleep(1)
         
-        # Page de fin
         if len(resized) > 1:
             elements.append(Image(resized[1], width=469, height=716))
         progress_map[job_id] = 90
@@ -462,7 +446,6 @@ def download_estimation():
         return jsonify({"error": "PDF introuvable ou non généré"}), 404
     return send_file(pdf_path, as_attachment=True)
 
-# ✅ Fin du fichier : routes de base pour test Render
 @app.route("/")
 def home():
     return "✅ API d’estimation immobilière opérationnelle !"
