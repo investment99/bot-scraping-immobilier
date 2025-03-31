@@ -1,6 +1,6 @@
 from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, PageBreak, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, PageBreak, Table, TableStyle, KeepTogether
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
@@ -11,6 +11,9 @@ import tempfile
 import threading
 import time
 import uuid
+import pandas as pd
+import matplotlib.pyplot as plt
+import gzip
 from openai import OpenAI
 from markdown2 import markdown as md_to_html
 from bs4 import BeautifulSoup
@@ -24,6 +27,9 @@ client = OpenAI()
 
 PDF_FOLDER = "./pdf_reports/"
 os.makedirs(PDF_FOLDER, exist_ok=True)
+
+# Dossier contenant les fichiers DVF (.csv.gz)
+DVF_FOLDER = "./dvf_data/"
 
 def markdown_to_elements(md_text):
     elements = []
@@ -100,6 +106,129 @@ def resize_image(image_path, output_path, target_size=(469, 716)):
         img = img.resize(target_size, PILImage.LANCZOS)
         img.save(output_path)
 
+### Nouvelle fonction : Extraction DVF et création du tableau comparatif
+def get_dvf_comparables(form_data):
+    try:
+        code_postal = str(form_data.get("code_postal", ""))
+        if not code_postal or not code_postal.isdigit() or len(code_postal) < 2:
+            return "Aucune donnée DVF trouvée pour ce code postal."
+        
+        dept_code = code_postal[:2]  # ex : "06" pour code postal "06000"
+        dvf_path = os.path.join(DVF_FOLDER, f"{dept_code}.csv.gz")
+        if not os.path.exists(dvf_path):
+            return f"Aucune donnée DVF disponible pour le département {dept_code}."
+        
+        # Lecture du fichier en forçant la colonne code_postal en str
+        df = pd.read_csv(dvf_path, sep="|", compression="gzip", dtype={"code_postal": str}, low_memory=False)
+        # Filtrage par code postal exact (ici on attend "06000")
+        df = df[df["code_postal"] == code_postal]
+        df = df[df["Type local"].isin(["Appartement", "Maison"])]
+        # Filtre de base pour éviter des valeurs aberrantes
+        df = df[(df["Surface reelle bati"] > 10) & (df["Valeur fonciere"] > 1000)]
+        df["prix_m2"] = df["Valeur fonciere"] / df["Surface reelle bati"]
+        df = df.sort_values(by="Date mutation", ascending=False).head(10)
+        
+        # Création d'un tableau Markdown
+        table_md = "| Adresse | Surface (m²) | Prix (€) | Prix/m² (€) |\n"
+        table_md += "|---|---|---|---|\n"
+        for _, row in df.iterrows():
+            adresse = row.get("Adresse", "")
+            surface = row.get("Surface reelle bati", 0)
+            valeur = row.get("Valeur fonciere", 0)
+            prix_m2 = row.get("prix_m2", 0)
+            table_md += f"| {adresse} | {surface:.0f} | {valeur:.0f} | {prix_m2:.0f} |\n"
+        
+        return f"Voici les 10 dernières transactions pour le secteur (code postal {code_postal}):\n\n{table_md}"
+    except Exception as e:
+        return f"Données indisponibles pour cette estimation. Erreur : {str(e)}"
+
+### Nouvelle fonction : Générer un graphique d'évolution du prix moyen au m²
+def generate_dvf_chart(form_data):
+    try:
+        code_postal = str(form_data.get("code_postal", ""))
+        if not code_postal or not code_postal.isdigit() or len(code_postal) < 2:
+            return None
+        
+        dept_code = code_postal[:2]
+        dvf_path = os.path.join(DVF_FOLDER, f"{dept_code}.csv.gz")
+        if not os.path.exists(dvf_path):
+            return None
+        
+        # Lecture du fichier en conservant la colonne code_postal en str
+        df = pd.read_csv(dvf_path, sep="|", compression="gzip", dtype={"code_postal": str}, low_memory=False)
+        df = df[df["code_postal"] == code_postal]
+        df = df[df["Type local"].isin(["Appartement", "Maison"])]
+        df = df[(df["Surface reelle bati"] > 10) & (df["Valeur fonciere"] > 1000)]
+        df["prix_m2"] = df["Valeur fonciere"] / df["Surface reelle bati"]
+        df["Date mutation"] = pd.to_datetime(df["Date mutation"], errors="coerce")
+        df = df.dropna(subset=["Date mutation"])
+        df["Année"] = df["Date mutation"].dt.year
+        prix_m2_par_annee = df.groupby("Année")["prix_m2"].mean().round(0)
+        
+        # Créer le graphique
+        plt.figure(figsize=(8, 5))
+        prix_m2_par_annee.plot(kind="line", marker="o", title=f"Évolution du prix moyen au m² - {code_postal}")
+        plt.ylabel("Prix moyen au m² (€)")
+        plt.xlabel("Année")
+        plt.grid(True)
+        plt.tight_layout()
+        
+        # Sauvegarder dans un fichier temporaire
+        tmp_img = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+        plt.savefig(tmp_img.name)
+        plt.close()
+        return tmp_img.name
+    except Exception as e:
+        return None
+
+### Fonctions de décoration pour la mise en page du PDF
+from reportlab.lib.enums import TA_CENTER
+
+def add_simple_table_of_contents(elements):
+    styles = getSampleStyleSheet()
+    toc_style = styles['Heading2']
+    elements.append(Paragraph("🗂️ Table des matières", toc_style))
+    toc = """
+    1. Informations personnelles  
+    2. Détails du bien  
+    3. Environnement & Quartier  
+    4. Données DVF (comparatif + graphique)  
+    5. Estimation et Analyse IA  
+    6. Recommandations  
+    """
+    elements.append(Paragraph(toc.replace("\n", "<br/>"), styles['BodyText']))
+    elements.append(PageBreak())
+
+def create_highlighted_box(text):
+    styles = getSampleStyleSheet()
+    box_style = ParagraphStyle(
+        'BoxStyle',
+        parent=styles['BodyText'],
+        backColor=colors.whitesmoke,
+        borderColor=colors.HexColor("#00C7C4"),
+        borderWidth=1,
+        borderPadding=6,
+        spaceBefore=12,
+        spaceAfter=12,
+    )
+    return [Paragraph(text, box_style)]
+
+def colored_paragraph(text, bg_color="#e8f9f9"):
+    styles = getSampleStyleSheet()
+    p = ParagraphStyle(
+        'ColoredPara',
+        parent=styles['BodyText'],
+        backColor=bg_color,
+        borderPadding=4,
+        leading=14
+    )
+    return Paragraph(text, p)
+
+def center_image(image_path, width=400, height=300):
+    img = Image(image_path, width=width, height=height)
+    img.hAlign = 'CENTER'
+    return img
+
 @app.route("/generate_estimation", methods=["POST"])
 def generate_estimation():
     try:
@@ -124,7 +253,10 @@ def generate_estimation():
         elements.append(Image(resized[0], width=469, height=716))
         elements.append(PageBreak())
 
-        # Pour la version synchrone, nous conservons les sections définies manuellement
+        # Ajout d'un sommaire (facultatif)
+        add_simple_table_of_contents(elements)
+
+        # Sections manuelles pour la version synchrone
         sections = [
             ("Informations personnelles", 
              f"Commence le rapport par une introduction personnalisée en rappelant les informations suivantes : "
@@ -162,7 +294,7 @@ def generate_estimation():
         return jsonify({"error": str(e)}), 500
 
 # ==============================
-# Endpoints pour génération asynchrone avec faux curseur
+# Endpoints pour génération asynchrone avec faux curseur et intégration DVF
 # ==============================
 
 progress_map = {}  # job_id -> progression (0-100)
@@ -170,8 +302,7 @@ results_map = {}   # job_id -> chemin du PDF généré
 
 def generate_estimation_background(job_id, form_data):
     try:
-        # Pour cette version asynchrone, on retire la découpe en sections.
-        # On combine toutes les informations dans un unique prompt pour laisser l'IA gérer la structure (5 pages max)
+        # Version asynchrone : on combine toutes les infos en un prompt unique, et on ajoute le DVF
         progress_map[job_id] = 0
         time.sleep(1)
         progress_map[job_id] = 40
@@ -196,29 +327,61 @@ def generate_estimation_background(job_id, form_data):
         progress_map[job_id] = 70
         time.sleep(1)
         
-        # Appel unique à OpenAI pour générer l'intégralité du rapport.
-        # Le prompt contient toutes les informations du formulaire, et l'IA doit organiser le rapport en 5 pages maximum.
+        # Intégration des données DVF : tableau comparatif
+        from reportlab.lib.styles import getSampleStyleSheet
+        styles = getSampleStyleSheet()
+        dvf_summary = get_dvf_comparables(form_data)
+        elements.append(Paragraph("Tableau comparatif des ventes récentes dans le secteur :", styles['Heading3']))
+        elements.extend(markdown_to_elements(dvf_summary))
+        elements.append(PageBreak())
+        
+        # Intégration des données DVF : graphique
+        dvf_chart_path = generate_dvf_chart(form_data)
+        if dvf_chart_path and os.path.exists(dvf_chart_path):
+            elements.append(center_image(dvf_chart_path, width=400, height=300))
+            elements.append(Paragraph("Graphique : Évolution du prix moyen au m²", styles['Heading3']))
+            elements.append(PageBreak())
+        progress_map[job_id] = 80
+        time.sleep(1)
+        
+        # Appel unique à OpenAI pour générer l'intégralité du rapport avec données DVF comme base d'analyse
         combined_prompt = (
-            f"Informations personnelles: {form_data.get('civilite')} {form_data.get('prenom')} {form_data.get('nom')}, "
+            f"Voici des données DVF récentes (tableau comparatif et graphique d'évolution des prix) pour le code postal {form_data.get('code_postal')}.\n"
+            f"Tu dois t'appuyer sur ces données pour réaliser une estimation précise du bien immobilier ci-dessous.\n\n"
+
+            f"Informations personnelles : {form_data.get('civilite')} {form_data.get('prenom')} {form_data.get('nom')}, "
             f"domicilié(e) à {form_data.get('adresse_personnelle')}, code postal {form_data.get('code_postal')}, "
-            f"email: {form_data.get('email')}, téléphone: {form_data.get('telephone')}. "
-            f"Informations générales sur le bien: le bien est un(e) {form_data.get('type_bien')}. Détails: {form_data}. "
-            f"État général: {form_data.get('etat_general')}, travaux récents: {form_data.get('travaux_recent')}, "
-            f"détails: {form_data.get('travaux_details')}, problèmes connus: {form_data.get('problemes')}. "
-            f"Équipements et commodités: {form_data.get('equipement_cuisine')}, {form_data.get('electromenager')}, {form_data.get('securite')}. "
-            f"Environnement et emplacement: {form_data.get('adresse')}, {form_data.get('quartier')}, atouts: {form_data.get('atouts_quartier')}, "
-            f"commerces: {form_data.get('distance_commerces')}. "
-            f"Historique et marché: {form_data.get('temps_marche')}, offres: {form_data.get('offres')}, "
-            f"raison de vente: {form_data.get('raison_vente')}, prix similaires: {form_data.get('prix_similaires')}. "
-            f"Caractéristiques spécifiques: {form_data.get('dpe')}, {form_data.get('orientation')}, {form_data.get('vue')}. "
-            f"Informations légales: {form_data.get('contraintes')}, {form_data.get('documents')}, charges: {form_data.get('charges_copro')}. "
-            f"Prix et conditions de vente: {form_data.get('prix')}, négociable: {form_data.get('negociation')}, conditions: {form_data.get('conditions')}. "
-            f"Autres informations: {form_data.get('occupe')}, dettes: {form_data.get('dettes')}, charges fixes: {form_data.get('charges_fixes')}."
+            f"email : {form_data.get('email')}, téléphone : {form_data.get('telephone')}.\n\n"
+
+            f"Le bien est un(e) {form_data.get('type_bien')}. Détails : {form_data}.\n\n"
+
+            f"État général : {form_data.get('etat_general')}, travaux récents : {form_data.get('travaux_recent')}, "
+            f"détails : {form_data.get('travaux_details')}, problèmes connus : {form_data.get('problemes')}.\n\n"
+
+            f"Équipements : cuisine/SDB : {form_data.get('equipement_cuisine')}, électroménager : {form_data.get('electromenager')}, sécurité : {form_data.get('securite')}.\n\n"
+
+            f"Emplacement : {form_data.get('adresse')}, quartier : {form_data.get('quartier')}, atouts : {form_data.get('atouts_quartier')}, "
+            f"commerces : {form_data.get('distance_commerces')}.\n\n"
+
+            f"Historique du bien : temps sur le marché : {form_data.get('temps_marche')}, offres : {form_data.get('offres')}, "
+            f"raison de la vente : {form_data.get('raison_vente')}, prix similaires : {form_data.get('prix_similaires')}.\n\n"
+
+            f"Caractéristiques techniques : DPE : {form_data.get('dpe')}, orientation : {form_data.get('orientation')}, vue : {form_data.get('vue')}.\n\n"
+
+            f"Informations légales : contraintes : {form_data.get('contraintes')}, documents à jour : {form_data.get('documents')}, "
+            f"charges de copropriété : {form_data.get('charges_copro')}.\n\n"
+
+            f"Prix et conditions : prix souhaité : {form_data.get('prix')}, négociable : {form_data.get('negociation')}, conditions particulières : {form_data.get('conditions')}.\n\n"
+
+            f"Autres éléments : bien occupé : {form_data.get('occupe')}, dettes : {form_data.get('dettes')}, charges fixes : {form_data.get('charges_fixes')}.\n\n"
+
+            f"⚠️ Important : utilise **prioritairement** les données du tableau et du graphique DVF précédemment affichés pour fonder ton analyse comparative, "
+            f"proposer une estimation réaliste, anticiper les tendances du marché à 5-10 ans et recommander des stratégies au client.\n"
         )
         section = generate_estimation_section(combined_prompt)
         elements.extend(section)
         elements.append(PageBreak())
-        progress_map[job_id] = 80
+        progress_map[job_id] = 90
         time.sleep(1)
         
         # Page de fin
