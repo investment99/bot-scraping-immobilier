@@ -476,33 +476,44 @@ def generate_estimation_background(job_id, form_data):
         
         combined_prompt = (
             f"# 1. Informations personnelles\n"
-            f"{form_data.get('civilite')} {form_data.get('prenom')} {form_data.get('nom')}, domicilié(e) à "
-            f"{form_data.get('adresse_personnelle')} ({form_data.get('code_postal')}), "
-            f"email : {form_data.get('email')}, téléphone : {form_data.get('telephone')}.\n\n"
+            f"Client : {form_data.get('civilite', '')} {form_data.get('prenom', '')} {form_data.get('nom', '')}.\n"
+            f"Adresse personnelle : {form_data.get('adresse_personnelle', '')} ({form_data.get('code_postal', '')}).\n"
+            f"Email : {form_data.get('email', '')}, téléphone : {form_data.get('telephone', '')}.\n\n"
 
             f"# 2. Détails du bien\n"
-            f"Type : {form_data.get('type_bien')} - État : {form_data.get('etat_general')} - Travaux récents : {form_data.get('travaux_recent')} "
-            f"- Détails : {form_data.get('travaux_details')} - Problèmes : {form_data.get('problemes')}.\n"
-            f"Équipements : {form_data.get('equipement_cuisine')}, {form_data.get('electromenager')}, {form_data.get('securite')}.\n"
-            f"Autres : DPE = {form_data.get('dpe')}, Orientation = {form_data.get('orientation')}, Vue = {form_data.get('vue')}.\n\n"
+            f"Type de bien : {form_data.get('type_bien', '')}.\n"
+            f"État général : {form_data.get('etat_general', '')}, travaux récents : {form_data.get('travaux_recent', '')}, "
+            f"détails des travaux : {form_data.get('travaux_details', '')}, problèmes connus : {form_data.get('problemes', '')}.\n"
+            f"Équipements : {form_data.get('equipement_cuisine', '')}, électroménagers : {form_data.get('electromenager', '')}, sécurité : {form_data.get('securite', '')}.\n"
+            f"DPE : {form_data.get('dpe', '')}, orientation : {form_data.get('orientation', '')}, vue : {form_data.get('vue', '')}.\n"
+            f"Superficie (si précisée) : {form_data.get('app_surface', form_data.get('maison_surface', form_data.get('terrain_surface', 'non spécifiée')))} m².\n\n"
 
             f"# 3. Environnement & Quartier\n"
-            f"Adresse : {form_data.get('adresse')} - Quartier : {form_data.get('quartier')} - "
-            f"Commerces à proximité : {form_data.get('distance_commerces')} - Atouts : {form_data.get('atouts_quartier')}.\n\n"
+            f"Adresse du bien : {form_data.get('adresse', '')}, quartier : {form_data.get('quartier', '')}.\n"
+            f"Atouts du quartier : {form_data.get('atouts_quartier', '')}.\n"
+            f"Commerces à proximité : {form_data.get('distance_commerces', '')}, écoles primaires : {form_data.get('distance_primaires', '')}, secondaires : {form_data.get('distance_secondaires', '')}.\n"
+            f"Projets de développement : {form_data.get('developpement', '')}.\n"
+            f"Stationnement et circulation : {form_data.get('circulation', '')}.\n\n"
 
             f"# 4. Données DVF (comparatif + graphique)\n"
-            f"Les 10 dernières ventes sont affichées dans le tableau, ainsi que le graphique d'évolution des prix au m² dans le secteur {form_data.get('code_postal')}.\n\n"
+            f"Le rapport contient un tableau des dernières ventes comparables dans le secteur, ainsi qu’un graphique montrant l’évolution du prix au m².\n"
+            f"Utilise ces données pour appuyer ton estimation.\n\n"
 
             f"# 5. Estimation et Analyse IA\n"
-            f"Estime la valeur actuelle du bien basé sur les informations ci-dessus.\n"
-            f"Historique du marché : temps sur le marché : {form_data.get('temps_marche')} - offres : {form_data.get('offres')} - "
-            f"raison de vente : {form_data.get('raison_vente')} - prix similaires : {form_data.get('prix_similaires')}.\n"
-            f"Prix visé par le client : {form_data.get('prix')} (négociable : {form_data.get('negociation')}).\n\n"
+            f"Estime la valeur de ce bien avec les infos fournies, les tendances du marché et les données DVF.\n"
+            f"Temps sur le marché : {form_data.get('temps_marche', '')}, offres reçues : {form_data.get('offres', '')}, raison de la vente : {form_data.get('raison_vente', '')}.\n"
+            f"Prix similaires : {form_data.get('prix_similaires', '')}.\n"
+            f"Prix envisagé par le client : {form_data.get('prix', '')} (négociable : {form_data.get('negociation', '')}).\n\n"
 
             f"# 6. Recommandations\n"
-            f"Conseils pratiques pour améliorer la vente. Bien occupé : {form_data.get('occupe')} - dettes : {form_data.get('dettes')} - charges : {form_data.get('charges_fixes')}.\n"
-            f"⚠️ Utilise **en priorité** les données DVF comparatives et les tendances graphiques pour appuyer ton estimation."
-        )
+            f"Donne des conseils stratégiques pour faciliter ou optimiser la vente.\n"
+            f"Occupation actuelle : {form_data.get('occupe', '')}, dettes ou hypothèques : {form_data.get('dettes', '')}, charges fixes : {form_data.get('charges_fixes', '')}.\n"
+            f"Documents légaux à jour : {form_data.get('documents', '')}, contraintes réglementaires : {form_data.get('contraintes', '')}.\n"
+            f"Conditions particulières : {form_data.get('conditions', '')}.\n\n"
+
+            f"⚠️ N’invente rien, reste cohérent avec les données fournies, et fais une analyse crédible basée sur le marché français.\n"
+)
+
         section = generate_estimation_section(combined_prompt)
         elements.extend(section)
         elements.append(PageBreak())
