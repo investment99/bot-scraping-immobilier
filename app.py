@@ -38,30 +38,36 @@ DVF_FOLDER = "./dvf_data/"
 
 def normalize_columns(df):
     """
-    Normalise les noms de colonnes en utilisant un mapping pour gérer les variantes
-    sans underscore ou en minuscules.
-    Par exemple, 'codepostal' ou 'Code Postal' deviendront 'code_postal'.
+    Corrige les noms de colonnes et fusionne certaines infos (adresse notamment).
     """
-    mapping = {
+    df.columns = [c.strip().lower().replace(" ", "").replace("_", "") for c in df.columns]
+
+    rename_map = {
         "codepostal": "code_postal",
-        "code_postal": "code_postal",
-        "surfacereellebati": "surface_reelle_bati",
-        "surface_reelle_bati": "surface_reelle_bati",
         "valeurfonciere": "valeur_fonciere",
-        "valeur_fonciere": "valeur_fonciere",
-        "adresse": "adresse",
+        "surfacereellebati": "surface_reelle_bati",
+        "datemutation": "date_mutation",
         "typelocal": "type_local",
-        "type_local": "type_local",
-        "datemmutation": "date_mutation",
-        "datemutation": "date_mutation",  # au cas où
-        "date_mutation": "date_mutation",
+        "type_local": "type_local",  # si jamais déjà propre
+        "commune": "commune",
+        "departement": "departement",
+        "nomvoie": "nom_voie",
+        "numerovoie": "numero_voie",
     }
-    normalized = []
-    for col in df.columns:
-        col_norm = col.strip().lower().replace(" ", "")
-        normalized.append(mapping.get(col_norm, col_norm))
-    df.columns = normalized
+    df = df.rename(columns=rename_map)
+
+    # Combine adresse si nom_voie et numero_voie existent
+    if "adresse" not in df.columns and "nom_voie" in df.columns:
+        df["adresse"] = df["nom_voie"]
+        if "numero_voie" in df.columns:
+            df["adresse"] = df["numero_voie"].astype(str) + " " + df["adresse"]
+
+    # Normalise code_postal
+    if "code_postal" in df.columns:
+        df["code_postal"] = df["code_postal"].astype(str).str.zfill(5)
+
     return df
+
 
 def markdown_to_elements(md_text):
     elements = []
