@@ -38,8 +38,9 @@ DVF_FOLDER = "./dvf_data/"
 
 def normalize_columns(df):
     """
-    Normalise les noms de colonnes en utilisant un mapping pour gérer
-    les variantes sans underscore ou en minuscules.
+    Normalise les noms de colonnes en utilisant un mapping pour gérer les variantes
+    sans underscore ou en minuscules.
+    Par exemple, 'codepostal' ou 'Code Postal' deviendront 'code_postal'.
     """
     mapping = {
         "codepostal": "code_postal",
@@ -52,6 +53,7 @@ def normalize_columns(df):
         "typelocal": "type_local",
         "type_local": "type_local",
         "datemmutation": "date_mutation",
+        "datemutation": "date_mutation",  # au cas où
         "date_mutation": "date_mutation",
     }
     normalized = []
@@ -315,7 +317,9 @@ def generate_estimation():
         adresse = form_data.get("adresse", "Non spécifiée")
 
         filename = os.path.join(PDF_FOLDER, f"estimation_{name.replace(' ', '_')}.pdf")
-        doc = SimpleDocTemplate(filename, pagesize=A4, topMargin=2*cm, bottomMargin=2*cm, leftMargin=2*cm, rightMargin=2*cm)
+        doc = SimpleDocTemplate(filename, pagesize=A4,
+                                topMargin=2*cm, bottomMargin=2*cm,
+                                leftMargin=2*cm, rightMargin=2*cm)
         elements = []
 
         # Page de garde
@@ -388,7 +392,9 @@ def generate_estimation_background(job_id, form_data):
 
         name = form_data.get("nom", "Client")
         filename = os.path.join(PDF_FOLDER, f"estimation_{name.replace(' ', '_')}_{job_id}.pdf")
-        doc = SimpleDocTemplate(filename, pagesize=A4, topMargin=2*cm, bottomMargin=2*cm, leftMargin=2*cm, rightMargin=2*cm)
+        doc = SimpleDocTemplate(filename, pagesize=A4,
+                                topMargin=2*cm, bottomMargin=2*cm,
+                                leftMargin=2*cm, rightMargin=2*cm)
         elements = []
         
         covers = ["static/cover_image.png", "static/cover_image1.png"]
@@ -439,11 +445,12 @@ def generate_estimation_background(job_id, form_data):
             f"Autres : DPE = {form_data.get('dpe')}, Orientation = {form_data.get('orientation')}, Vue = {form_data.get('vue')}.\n\n"
 
             f"# 3. Environnement & Quartier\n"
-            f"Adresse : {form_data.get('adresse')} - Quartier : {form_data.get('quartier')} - Commerces à proximité : {form_data.get('distance_commerces')} - Atouts : {form_data.get('atouts_quartier')}.\n\n"
+            f"Adresse : {form_data.get('adresse')} - Quartier : {form_data.get('quartier')} - "
+            f"Commerces à proximité : {form_data.get('distance_commerces')} - Atouts : {form_data.get('atouts_quartier')}.\n\n"
 
             f"# 4. Données DVF (comparatif + graphique)\n"
             f"Les 10 dernières ventes sont affichées dans le tableau, ainsi que le graphique d'évolution des prix au m² dans le secteur {form_data.get('code_postal')}.\n\n"
-  
+
             f"# 5. Estimation et Analyse IA\n"
             f"Estime la valeur actuelle du bien basé sur les informations ci-dessus.\n"
             f"Historique du marché : temps sur le marché : {form_data.get('temps_marche')} - offres : {form_data.get('offres')} - "
