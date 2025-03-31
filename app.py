@@ -187,7 +187,17 @@ def load_dvf_data_avance(form_data):
             df = df[df["adresse"].notna()]
             df = df[df["adresse"].apply(lambda x: any(mot in x.lower() for mot in mots))]
 
-        df = df[(df["surface_reelle_bati"] > 10) & (df["valeur_fonciere"] > 1000)]
+        # ✅ Debug AVANT le filtrage sur surface
+        logging.info("📋 Colonnes disponibles juste avant filtrage surface: %s", df.columns.tolist())
+        logging.info("🔎 Aperçu des lignes DVF avant filtrage surface: %s", df.head(3).to_dict())
+
+        try:
+            df = df[(df["surface_reelle_bati"] > 10) & (df["valeur_fonciere"] > 1000)]
+        except KeyError as ke:
+            logging.error(f"❌ Colonne manquante pour le filtrage surface : {str(ke)}")
+            logging.error("❗ Colonnes actuelles du DataFrame : %s", df.columns.tolist())
+            raise
+
         if surface_bien > 0:
             df = df[df["surface_reelle_bati"].between(surface_bien * 0.7, surface_bien * 1.3)]
 
