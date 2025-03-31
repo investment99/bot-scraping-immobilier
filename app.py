@@ -156,10 +156,10 @@ def load_dvf_data_avance(form_data):
         logging.info(f"Recherche du fichier DVF pour le département {dept_code}...")
         if os.path.exists(file_path_gz):
             logging.info(f"Chargement du fichier compressé {file_path_gz}")
-            df = pd.read_csv(file_path_gz, sep="|", low_memory=False)
+            df = pd.read_csv(file_path_gz, sep=";", low_memory=False)
         elif os.path.exists(file_path_csv):
             logging.info(f"Chargement du fichier CSV {file_path_csv}")
-            df = pd.read_csv(file_path_csv, sep="|", low_memory=False)
+            df = pd.read_csv(file_path_gz, sep=";", low_memory=False)
         else:
             logging.error(f"Aucun fichier trouvé pour le département {dept_code}.")
             return None, f"Aucun fichier trouvé pour le département {dept_code}."
@@ -231,7 +231,7 @@ def generate_dvf_chart(form_data):
             return None
 
         logging.info(f"Chargement du fichier DVF pour le graphique: {dvf_path}")
-        df = pd.read_csv(dvf_path, sep="|", compression="gzip", low_memory=False)
+        df = pd.read_csv(dvf_path, sep=";", compression="gzip", low_memory=False)
         df = normalize_columns(df)
 
         df["code_postal"] = df["code_postal"].astype(str).str.zfill(5)
