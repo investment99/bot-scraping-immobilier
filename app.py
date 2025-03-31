@@ -252,14 +252,16 @@ def get_dvf_comparables(form_data):
         df["prix_m2"] = df["valeur_fonciere"] / df["surface_reelle_bati"]
         df = df.sort_values(by="date_mutation", ascending=False).head(10)
 
-        table_md = "| Adresse | Surface (m²) | Prix (€) | Prix/m² (€) |\n"
-        table_md += "|---|---|---|---|\n"
+        table_md = "| Adresse | Ville | Type de bien | Surface (m²) | Prix (€) | Prix/m² (€) |\n"
+        table_md += "|---|---|---|---|---|---|\n"
         for _, row in df.iterrows():
             adresse = row.get("adresse", "")
+            ville = row.get("nom_commune", "N/A")
+            type_local = row.get("type_local", "N/A")
             surface = row.get("surface_reelle_bati", 0)
             valeur = row.get("valeur_fonciere", 0)
             prix_m2 = row.get("prix_m2", 0)
-            table_md += f"| {adresse} | {surface:.0f} | {valeur:.0f} | {prix_m2:.0f} |\n"
+            table_md += f"| {adresse} | {ville} | {type_local} | {surface:.0f} | {valeur:.0f} | {prix_m2:.0f} |\n"
 
         logging.info("Tableau comparatif DVF généré.")
         return f"Voici les 10 dernières transactions similaires pour ce secteur :\n\n{table_md}"
