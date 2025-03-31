@@ -155,7 +155,9 @@ def load_dvf_data_avance(form_data):
     try:
         start_time = time.time()
         code_postal = str(form_data.get("code_postal", "")).zfill(5)
-        adresse = form_data.get("adresse", "").lower()
+        # Utiliser l'adresse du bien à estimer pour filtrer les biens
+        adresse_bien = form_data.get("adresse", "").lower()
+
         type_bien = form_data.get("type_bien", "").capitalize()
         surface_bien = float(form_data.get("surface", 0))
 
@@ -197,11 +199,13 @@ def load_dvf_data_avance(form_data):
         logging.info("📊 Lignes après filtrage type_local=%s : %d", type_bien, len(df))  # Sauvegarde avant le filtrage d'adresse
         df_initial = df.copy()
 
-        if adresse:
-            mots = adresse.lower().split()
+        # Filtrer avec l'adresse du bien
+        if adresse_bien:  # Utiliser l'adresse du bien ici
+            mots = adresse_bien.lower().split()
             df = df[df["adresse"].notna()]
             df = df[df["adresse"].apply(lambda x: any(mot in x.lower() for mot in mots))]
-            logging.info(f"📊 Lignes après filtrage adresse='{adresse}' : {len(df)}")
+            logging.info(f"📊 Lignes après filtrage adresse='{adresse_bien}' : {len(df)}")
+
 
         if df.empty:
                 logging.warning("⚠️ Aucune correspondance sur l’adresse, on garde tous les biens du code postal.")
