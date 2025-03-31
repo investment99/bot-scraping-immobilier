@@ -95,8 +95,8 @@ def generate_estimation_section(prompt, min_tokens=800):
             },
             {"role": "user", "content": prompt}
         ],
-        max_tokens=min_tokens,
-        temperature=0.7,
+        max_tokens=max_tokens,
+        temperature=0.8,
     )
     return markdown_to_elements(response.choices[0].message.content)
 
@@ -125,7 +125,7 @@ def load_dvf_data_avance(form_data):
         else:
             return None, f"Aucun fichier trouvé pour le département {dept_code}."
 
-        # Normalisation de toutes les colonnes (mise en minuscule et remplacement des espaces par des underscores)
+        # Normalisation de toutes les colonnes : mise en minuscules et remplacement des espaces par des underscores
         df.columns = [col.strip().lower().replace(" ", "_") for col in df.columns]
 
         df = df[df["code_postal"] == code_postal]
