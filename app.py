@@ -36,6 +36,31 @@ os.makedirs(PDF_FOLDER, exist_ok=True)
 # Dossier contenant les fichiers DVF (.csv.gz)
 DVF_FOLDER = "./dvf_data/"
 
+def normalize_columns(df):
+    """
+    Normalise les noms de colonnes en utilisant un mapping pour gérer
+    les variantes sans underscore ou en minuscules.
+    """
+    mapping = {
+        "codepostal": "code_postal",
+        "code_postal": "code_postal",
+        "surfacereellebati": "surface_reelle_bati",
+        "surface_reelle_bati": "surface_reelle_bati",
+        "valeurfonciere": "valeur_fonciere",
+        "valeur_fonciere": "valeur_fonciere",
+        "adresse": "adresse",
+        "typelocal": "type_local",
+        "type_local": "type_local",
+        "datemmutation": "date_mutation",
+        "date_mutation": "date_mutation",
+    }
+    normalized = []
+    for col in df.columns:
+        col_norm = col.strip().lower().replace(" ", "")
+        normalized.append(mapping.get(col_norm, col_norm))
+    df.columns = normalized
+    return df
+
 def markdown_to_elements(md_text):
     elements = []
     html_content = md_to_html(md_text, extras=["tables"])
@@ -137,8 +162,8 @@ def load_dvf_data_avance(form_data):
             logging.error(f"Aucun fichier trouvé pour le département {dept_code}.")
             return None, f"Aucun fichier trouvé pour le département {dept_code}."
 
-        # Normalisation de toutes les colonnes : mise en minuscules et remplacement des espaces par des underscores
-        df.columns = [col.strip().lower().replace(" ", "_") for col in df.columns]
+        # Normalisation des colonnes via la fonction normalize_columns
+        df = normalize_columns(df)
         logging.debug(f"Colonnes après normalisation: {df.columns.tolist()}")
 
         df = df[df["code_postal"] == code_postal]
@@ -205,8 +230,7 @@ def generate_dvf_chart(form_data):
 
         logging.info(f"Chargement du fichier DVF pour le graphique: {dvf_path}")
         df = pd.read_csv(dvf_path, sep="|", compression="gzip", low_memory=False)
-        # Normalisation des colonnes
-        df.columns = [col.strip().lower().replace(" ", "_") for col in df.columns]
+        df = normalize_columns(df)
 
         df["code_postal"] = df["code_postal"].astype(str).str.zfill(5)
         df = df[df["type_local"].isin(["Appartement", "Maison"])]
