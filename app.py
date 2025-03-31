@@ -57,10 +57,10 @@ def normalize_columns(df):
     df = df.rename(columns=rename_map)
 
     # Combine adresse si nom_voie et numero_voie existent
-    if "adresse" not in df.columns and "nom_voie" in df.columns:
-        df["adresse"] = df["nom_voie"]
-        if "numero_voie" in df.columns:
-            df["adresse"] = df["numero_voie"].astype(str) + " " + df["adresse"]
+    if "adresse" not in df.columns and "adresse_nom_voie" in df.columns:
+        df["adresse"] = df["adresse_nom_voie"]
+        if "adresse_numero" in df.columns:
+            df["adresse"] = df["adresse_numero"].astype(str) + " " + df["adresse"]
 
     # Normalise code_postal
     if "code_postal" in df.columns:
