@@ -37,14 +37,7 @@ os.makedirs(PDF_FOLDER, exist_ok=True)
 DVF_FOLDER = "./dvf_data/"
 
 def normalize_columns(df):
-    """
-    Corrige les noms de colonnes et crée la colonne "adresse"
-    en combinant "adresse_numero" et "adresse_nom_voie" si elles existent.
-    """
-    # Supprime espaces, underscores et met en minuscule pour les noms de colonnes
     df.columns = [c.strip().lower().replace(" ", "").replace("_", "") for c in df.columns]
-
-    # Mapping pour renommer les colonnes importantes
     rename_map = {
         "codepostal": "code_postal",
         "valeurfonciere": "valeur_fonciere",
@@ -57,19 +50,15 @@ def normalize_columns(df):
         "numerovoie": "numero_voie",
     }
     df = df.rename(columns=rename_map)
-
-    # Création de la colonne "adresse" si elle n'existe pas
-    if "adresse" not in df.columns:
-        if "numero_voie" in df.columns and "nom_voie" in df.columns:
-            # "numero_voie" est le numéro, "nom_voie" le nom de la rue
-            df["adresse"] = df["numero_voie"].astype(str) + " " + df["nom_voie"]
-        elif "nom_voie" in df.columns:
-            df["adresse"] = df["nom_voie"]
-
-    # Normalisation du code postal
+    
+    # Ici, après normalisation, "adresse_nom_voie" devient "adressenomvoie"
+    if "adresse" not in df.columns and "adressenomvoie" in df.columns:
+        df["adresse"] = df["adressenomvoie"]
+        if "adressenumerovoie" in df.columns:
+            df["adresse"] = df["adressenumerovoie"].astype(str) + " " + df["adresse"]
+    
     if "code_postal" in df.columns:
         df["code_postal"] = df["code_postal"].astype(str).str.zfill(5)
-
     return df
 
 
