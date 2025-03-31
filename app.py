@@ -126,6 +126,12 @@ def load_dvf_data_avance(form_data):
         else:
             return None, f"Aucun fichier trouvé pour le département {dept_code}."
 
+        # --- MODIFICATION : Nettoyer les noms de colonnes ---
+        df.columns = [col.strip() for col in df.columns]
+        if "Code postal" in df.columns:
+            df.rename(columns={"Code postal": "code_postal"}, inplace=True)
+        # -------------------------------------------------------
+
         df = df[df["code_postal"] == code_postal]
         df = df[df["Type local"].isin(["Appartement", "Maison"])]
 
@@ -169,31 +175,6 @@ def get_dvf_comparables(form_data):
         return f"Voici les 10 dernières transactions similaires pour ce secteur :\n\n{table_md}"
     except Exception as e:
         return f"Données indisponibles pour cette estimation. Erreur : {str(e)}"
-        
-        # Lecture du fichier en forçant la colonne code_postal en str
-        df = pd.read_csv(dvf_path, sep="|", compression="gzip", dtype={"code_postal": str}, low_memory=False)
-        df["code_postal"] = df["code_postal"].astype(str).str.zfill(5)
-        # Filtrage par code postal exact (ici on attend "06000")
-        df = df[df["code_postal"] == code_postal]
-        df = df[df["Type local"].isin(["Appartement", "Maison"])]
-        # Filtre de base pour éviter des valeurs aberrantes
-        df = df[(df["Surface reelle bati"] > 10) & (df["Valeur fonciere"] > 1000)]
-        df["prix_m2"] = df["Valeur fonciere"] / df["Surface reelle bati"]
-        df = df.sort_values(by="Date mutation", ascending=False).head(10)
-        
-        # Création d'un tableau Markdown
-        table_md = "| Adresse | Surface (m²) | Prix (€) | Prix/m² (€) |\n"
-        table_md += "|---|---|---|---|\n"
-        for _, row in df.iterrows():
-            adresse = row.get("Adresse", "")
-            surface = row.get("Surface reelle bati", 0)
-            valeur = row.get("Valeur fonciere", 0)
-            prix_m2 = row.get("prix_m2", 0)
-            table_md += f"| {adresse} | {surface:.0f} | {valeur:.0f} | {prix_m2:.0f} |\n"
-        
-        return f"Voici les 10 dernières transactions pour le secteur (code postal {code_postal}):\n\n{table_md}"
-    except Exception as e:
-        return f"Données indisponibles pour cette estimation. Erreur : {str(e)}"
 
 ### Nouvelle fonction : Générer un graphique d'évolution du prix moyen au m²
 def generate_dvf_chart(form_data):
@@ -209,6 +190,12 @@ def generate_dvf_chart(form_data):
         
         # Lecture du fichier en conservant la colonne code_postal en str
         df = pd.read_csv(dvf_path, sep="|", compression="gzip", dtype={"code_postal": str}, low_memory=False)
+        # --- MODIFICATION : Nettoyer les noms de colonnes ---
+        df.columns = [col.strip() for col in df.columns]
+        if "Code postal" in df.columns:
+            df.rename(columns={"Code postal": "code_postal"}, inplace=True)
+        # -------------------------------------------------------
+
         df["code_postal"] = df["code_postal"].astype(str).str.zfill(5)
         df = df[df["Type local"].isin(["Appartement", "Maison"])]
         df = df[(df["Surface reelle bati"] > 10) & (df["Valeur fonciere"] > 1000)]
@@ -305,10 +292,9 @@ def generate_estimation():
 
         elements.append(Image(resized[0], width=469, height=716))
         elements.append(PageBreak())
-        # ✅ Sommaire
-        
-
-        # Ajout d'un sommaire (facultatif)
+        # --- MODIFICATION : Ajout du sommaire ---
+        add_simple_table_of_contents(elements)
+        # -----------------------------------------
 
         # Sections manuelles pour la version synchrone
         sections = [
@@ -336,7 +322,6 @@ def generate_estimation():
             section = generate_estimation_section(prompt)
             elements.extend(section)
             elements.append(PageBreak())  # ✅ Séparation claire des sections
-
 
         # Page de fin
         if len(resized) > 1:
@@ -379,6 +364,9 @@ def generate_estimation_background(job_id, form_data):
         if resized:
             elements.append(Image(resized[0], width=469, height=716))
         elements.append(PageBreak())
+        # --- MODIFICATION : Ajout du sommaire ---
+        add_simple_table_of_contents(elements)
+        # -----------------------------------------
         progress_map[job_id] = 70
         time.sleep(1)
         
