@@ -37,7 +37,7 @@ os.makedirs(PDF_FOLDER, exist_ok=True)
 DVF_FOLDER = "./dvf_data/"
 
 def normalize_columns(df):
-    df.columns = [c.strip().lower().replace(" ", "").replace("_", "") for c in df.columns]
+    df.columns = [c.strip().lower().replace(" ", "") for c in df.columns]
     rename_map = {
         "codepostal": "code_postal",
         "valeurfonciere": "valeur_fonciere",
