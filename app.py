@@ -43,16 +43,14 @@ def normalize_columns(df):
     df.columns = [c.strip().lower().replace(" ", "_") for c in df.columns]
 
     rename_map = {
-        "code_postal": "code_postal",
         "valeur_fonciere": "valeur_fonciere",
         "surface_reelle_bati": "surface_reelle_bati",
         "date_mutation": "date_mutation",
         "type_local": "type_local",
-        "commune": "commune",
-        "departement": "departement",
-        "nom_voie": "nom_voie",
-        "numero_voie": "numero_voie",
-    }
+        "code_postal": "code_postal",
+        "adresse_nom_voie": "nom_voie",
+        "adresse_numero": "numero_voie"
+}
     df = df.rename(columns=rename_map)
 
     if "numero_voie" in df.columns and "nom_voie" in df.columns:
@@ -61,7 +59,7 @@ def normalize_columns(df):
         df["adresse"] = df["nom_voie"]
 
     if "code_postal" in df.columns:
-        df["code_postal"] = df["code_postal"].astype(str).str.zfill(5)
+        df["adresse"] = df["numero_voie"].astype(str) + " " + df["nom_voie"].astype(str)
 
     return df
 
