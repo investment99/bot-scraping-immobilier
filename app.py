@@ -40,32 +40,32 @@ def normalize_columns(df):
     """
     Corrige les noms de colonnes et fusionne certaines infos (adresse notamment).
     """
-    df.columns = [c.strip().lower().replace(" ", "").replace("_", "") for c in df.columns]
+    df.columns = [c.strip().lower().replace(" ", "_") for c in df.columns]
 
     rename_map = {
-        "codepostal": "code_postal",
         "valeurfonciere": "valeur_fonciere",
         "surfacereellebati": "surface_reelle_bati",
         "datemutation": "date_mutation",
         "typelocal": "type_local",
-        "commune": "commune",
-        "departement": "departement",
-        "nomvoie": "nom_voie",
-        "numerovoie": "numero_voie",
+        "codepostal": "code_postal",
+        "numerovoie": "adresse_numero",
+        "nomvoie": "adresse_nom_voie"
     }
+
     df = df.rename(columns=rename_map)
 
-    # Création de la colonne adresse
-    if "numero_voie" in df.columns and "nom_voie" in df.columns:
-        df["adresse"] = df["numero_voie"].astype(str) + " " + df["nom_voie"]
-    elif "nom_voie" in df.columns:
-        df["adresse"] = df["nom_voie"]
+    # Création de la colonne "adresse"
+    if "adresse_numero" in df.columns and "adresse_nom_voie" in df.columns:
+        df["adresse"] = df["adresse_numero"].astype(str).str.strip() + " " + df["adresse_nom_voie"].astype(str).str.strip()
+    elif "adresse_nom_voie" in df.columns:
+        df["adresse"] = df["adresse_nom_voie"]
 
-    # Normalise code_postal
+    # Normalisation code postal
     if "code_postal" in df.columns:
         df["code_postal"] = df["code_postal"].astype(str).str.zfill(5)
 
     return df
+
 
 
 
