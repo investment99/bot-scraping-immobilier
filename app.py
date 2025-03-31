@@ -20,9 +20,8 @@ from openai import OpenAI
 from markdown2 import markdown as md_to_html
 from bs4 import BeautifulSoup
 
-# Configurer le logging
-logging.basicConfig(level=logging.INFO,
-                    format="%(asctime)s [%(levelname)s] %(message)s")
+# Configuration du logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
 # 🔧 Initialisation de Flask
 app = Flask(__name__)
@@ -130,15 +129,15 @@ def load_dvf_data_avance(form_data):
         logging.info(f"Recherche du fichier DVF pour le département {dept_code}...")
         if os.path.exists(file_path_gz):
             logging.info(f"Chargement du fichier compressé {file_path_gz}")
-            df = pd.read_csv(file_path_gz, sep="|", low_memory=False, usecols=["code_postal", "type_local", "adresse", "surface_reelle_bati", "valeur_fonciere", "date_mutation"])
+            df = pd.read_csv(file_path_gz, sep="|", low_memory=False)
         elif os.path.exists(file_path_csv):
             logging.info(f"Chargement du fichier CSV {file_path_csv}")
-            df = pd.read_csv(file_path_csv, sep="|", low_memory=False, usecols=["code_postal", "type_local", "adresse", "surface_reelle_bati", "valeur_fonciere", "date_mutation"])
+            df = pd.read_csv(file_path_csv, sep="|", low_memory=False)
         else:
             logging.error(f"Aucun fichier trouvé pour le département {dept_code}.")
             return None, f"Aucun fichier trouvé pour le département {dept_code}."
 
-        # Normalisation des colonnes
+        # Normalisation de toutes les colonnes : mise en minuscules et remplacement des espaces par des underscores
         df.columns = [col.strip().lower().replace(" ", "_") for col in df.columns]
         logging.debug(f"Colonnes après normalisation: {df.columns.tolist()}")
 
@@ -206,6 +205,7 @@ def generate_dvf_chart(form_data):
 
         logging.info(f"Chargement du fichier DVF pour le graphique: {dvf_path}")
         df = pd.read_csv(dvf_path, sep="|", compression="gzip", low_memory=False)
+        # Normalisation des colonnes
         df.columns = [col.strip().lower().replace(" ", "_") for col in df.columns]
 
         df["code_postal"] = df["code_postal"].astype(str).str.zfill(5)
