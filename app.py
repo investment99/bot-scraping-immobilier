@@ -197,7 +197,7 @@ def load_dvf_data_avance(form_data):
         logging.info("📊 Lignes après filtrage code_postal=%s : %d", code_postal, len(df))
 
         df = df[df["type_local"].isin(["Appartement", "Maison"])]
-        logging.info("📊 Lignes après filtrage type_local=%s : %d", type_bien, len(df)# Sauvegarde avant le filtrage d'adresse
+        logging.info("📊 Lignes après filtrage type_local=%s : %d", type_bien, len(df))  # Sauvegarde avant le filtrage d'adresse
         df_initial = df.copy()
 
         if adresse:
