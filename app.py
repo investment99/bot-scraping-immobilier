@@ -56,8 +56,9 @@ def normalize_columns(df):
 
     # 🔐 Force type str + nettoyage
     if "code_postal" in df.columns:
-        df["code_postal"] = df["code_postal"].astype(str).str.extract(r"(\d{5})")[0]
-
+        df["code_postal"] = df["code_postal"].apply(
+            lambda x: str(int(float(x))).zfill(5) if pd.notna(x) and str(x).replace('.', '', 1).isdigit() else None
+)
     if "numero_voie" in df.columns:
         df["numero_voie"] = df["numero_voie"].astype(str).str.replace(r"\.0$", "", regex=True).str.strip()
 
