@@ -203,12 +203,12 @@ def load_dvf_data_avance(form_data):
             df = df[df["adresse"].apply(lambda x: any(mot in x.lower() for mot in mots))]
             logging.info(f"📊 Lignes après filtrage adresse='{adresse}' : {len(df)}")
 
-            if df.empty:
+        if df.empty:
                 logging.warning("⚠️ Aucune correspondance sur l’adresse, on garde tous les biens du code postal.")
                 df = df_initial
 
 
-if "surface_reelle_bati" not in df.columns or "valeur_fonciere" not in df.columns:
+        if "surface_reelle_bati" not in df.columns or "valeur_fonciere" not in df.columns:
             logging.error("❌ Colonnes 'surface_reelle_bati' ou 'valeur_fonciere' absentes !")
             return None, "Colonnes manquantes"
 
