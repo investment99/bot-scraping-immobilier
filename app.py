@@ -1,3 +1,14 @@
+import logging
+import os
+import tempfile
+import threading
+import time
+import uuid
+from datetime import datetime
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import gzip
 from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, PageBreak, Table, TableStyle, KeepTogether
@@ -5,18 +16,13 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
 from reportlab.lib import colors
-from datetime import datetime
-import os
-import tempfile
-import threading
-import time
-import uuid
-import pandas as pd
-import matplotlib.pyplot as plt
-import gzip
 from openai import OpenAI
 from markdown2 import markdown as md_to_html
 from bs4 import BeautifulSoup
+
+# Configurer le logging
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s [%(levelname)s] %(message)s")
 
 # 🔧 Initialisation de Flask
 app = Flask(__name__)
@@ -78,6 +84,7 @@ def add_section_title(elements, title):
     elements.append(Spacer(1, 12))
 
 def generate_estimation_section(prompt, min_tokens=800):
+    logging.info("Génération de la section d'estimation avec OpenAI...")
     response = client.chat.completions.create(
         model="gpt-4",
         messages=[
@@ -95,9 +102,10 @@ def generate_estimation_section(prompt, min_tokens=800):
             },
             {"role": "user", "content": prompt}
         ],
-        max_tokens=max_tokens,
+        max_tokens=min_tokens,
         temperature=0.8,
     )
+    logging.info("Section générée par OpenAI.")
     return markdown_to_elements(response.choices[0].message.content)
 
 def resize_image(image_path, output_path, target_size=(469, 716)):
@@ -109,6 +117,7 @@ def resize_image(image_path, output_path, target_size=(469, 716)):
 ### Fonction d'extraction DVF et création du tableau comparatif
 def load_dvf_data_avance(form_data):
     try:
+        start_time = time.time()
         code_postal = str(form_data.get("code_postal", "")).zfill(5)
         adresse = form_data.get("adresse", "").lower()
         type_bien = form_data.get("type_bien", "").capitalize()
@@ -118,27 +127,30 @@ def load_dvf_data_avance(form_data):
         file_path_gz = os.path.join(DVF_FOLDER, f"{dept_code}.csv.gz")
         file_path_csv = os.path.join(DVF_FOLDER, f"{dept_code}.csv")
 
+        logging.info(f"Recherche du fichier DVF pour le département {dept_code}...")
         if os.path.exists(file_path_gz):
-            df = pd.read_csv(file_path_gz, sep="|", low_memory=False)
+            logging.info(f"Chargement du fichier compressé {file_path_gz}")
+            df = pd.read_csv(file_path_gz, sep="|", low_memory=False, usecols=["code_postal", "type_local", "adresse", "surface_reelle_bati", "valeur_fonciere", "date_mutation"])
         elif os.path.exists(file_path_csv):
-            df = pd.read_csv(file_path_csv, sep="|", low_memory=False)
+            logging.info(f"Chargement du fichier CSV {file_path_csv}")
+            df = pd.read_csv(file_path_csv, sep="|", low_memory=False, usecols=["code_postal", "type_local", "adresse", "surface_reelle_bati", "valeur_fonciere", "date_mutation"])
         else:
+            logging.error(f"Aucun fichier trouvé pour le département {dept_code}.")
             return None, f"Aucun fichier trouvé pour le département {dept_code}."
 
-        # Normalisation de toutes les colonnes : mise en minuscules et remplacement des espaces par des underscores
+        # Normalisation des colonnes
         df.columns = [col.strip().lower().replace(" ", "_") for col in df.columns]
+        logging.debug(f"Colonnes après normalisation: {df.columns.tolist()}")
 
         df = df[df["code_postal"] == code_postal]
-        df = df[df["type_local"].isin(["Appartement", "Maison"])]
+        logging.info(f"Filtrage sur code_postal={code_postal} terminé, {len(df)} enregistrements trouvés.")
 
-        # Filtrage par type de bien
+        df = df[df["type_local"].isin(["Appartement", "Maison"])]
         if type_bien in ["Appartement", "Maison"]:
             df = df[df["type_local"] == type_bien]
 
-        # Filtrage souple par adresse
         if adresse:
             df = df[df["adresse"].str.lower().str.contains(adresse.split()[0], na=False)]
-
         df = df[(df["surface_reelle_bati"] > 10) & (df["valeur_fonciere"] > 1000)]
         if surface_bien > 0:
             df = df[df["surface_reelle_bati"].between(surface_bien * 0.7, surface_bien * 1.3)]
@@ -146,15 +158,18 @@ def load_dvf_data_avance(form_data):
         df["prix_m2"] = df["valeur_fonciere"] / df["surface_reelle_bati"]
         df = df.sort_values(by="date_mutation", ascending=False)
 
+        elapsed = time.time() - start_time
+        logging.info(f"Chargement et filtrage DVF terminé en {elapsed:.2f} secondes ({len(df)} enregistrements après filtrage).")
         return df, None
     except Exception as e:
+        logging.error(f"Erreur dans load_dvf_data_avance: {str(e)}")
         return None, f"Erreur lors du chargement avancé des données DVF : {str(e)}"
 
 def get_dvf_comparables(form_data):
     try:
         df, erreur = load_dvf_data_avance(form_data)
-
         if erreur or df is None or df.empty:
+            logging.warning("Aucune donnée DVF trouvée après filtrage.")
             return f"Données indisponibles pour cette estimation. Erreur : {erreur or 'Aucune donnée trouvée.'}"
 
         df["prix_m2"] = df["valeur_fonciere"] / df["surface_reelle_bati"]
@@ -169,24 +184,28 @@ def get_dvf_comparables(form_data):
             prix_m2 = row.get("prix_m2", 0)
             table_md += f"| {adresse} | {surface:.0f} | {valeur:.0f} | {prix_m2:.0f} |\n"
 
+        logging.info("Tableau comparatif DVF généré.")
         return f"Voici les 10 dernières transactions similaires pour ce secteur :\n\n{table_md}"
     except Exception as e:
+        logging.error(f"Erreur dans get_dvf_comparables: {str(e)}")
         return f"Données indisponibles pour cette estimation. Erreur : {str(e)}"
 
-### Génération d'un graphique d'évolution du prix moyen au m²
 def generate_dvf_chart(form_data):
     try:
+        start_time = time.time()
         code_postal = str(form_data.get("code_postal", "")).zfill(5)
         if not code_postal or not code_postal.isdigit() or len(code_postal) < 2:
+            logging.warning("Code postal invalide.")
             return None
-        
+
         dept_code = code_postal[:2]
         dvf_path = os.path.join(DVF_FOLDER, f"{dept_code}.csv.gz")
         if not os.path.exists(dvf_path):
+            logging.error(f"Fichier DVF non trouvé pour le département {dept_code}.")
             return None
-        
+
+        logging.info(f"Chargement du fichier DVF pour le graphique: {dvf_path}")
         df = pd.read_csv(dvf_path, sep="|", compression="gzip", low_memory=False)
-        # Normalisation des colonnes
         df.columns = [col.strip().lower().replace(" ", "_") for col in df.columns]
 
         df["code_postal"] = df["code_postal"].astype(str).str.zfill(5)
@@ -197,22 +216,24 @@ def generate_dvf_chart(form_data):
         df = df.dropna(subset=["date_mutation"])
         df["année"] = df["date_mutation"].dt.year
         prix_m2_par_annee = df.groupby("année")["prix_m2"].mean().round(0)
-        
+
         plt.figure(figsize=(8, 5))
         prix_m2_par_annee.plot(kind="line", marker="o", title=f"Évolution du prix moyen au m² - {code_postal}")
         plt.ylabel("Prix moyen au m² (€)")
         plt.xlabel("Année")
         plt.grid(True)
         plt.tight_layout()
-        
+
         tmp_img = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
         plt.savefig(tmp_img.name)
         plt.close()
+        elapsed = time.time() - start_time
+        logging.info(f"Graphique DVF généré en {elapsed:.2f} secondes.")
         return tmp_img.name
     except Exception as e:
+        logging.error(f"Erreur dans generate_dvf_chart: {str(e)}")
         return None
 
-### Fonctions de décoration pour la mise en page du PDF
 from reportlab.lib.enums import TA_CENTER
 
 def add_simple_table_of_contents(elements):
@@ -264,6 +285,7 @@ def center_image(image_path, width=400, height=300):
 def generate_estimation():
     try:
         form_data = request.json
+        logging.info("Début de la génération synchrone du rapport...")
         name = form_data.get("nom", "Client")
         city = form_data.get("quartier", "Non spécifié")
         adresse = form_data.get("adresse", "Non spécifiée")
@@ -280,13 +302,13 @@ def generate_estimation():
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
                     resize_image(img_path, tmp.name)
                     resized.append(tmp.name)
-
+        logging.info("Page de garde préparée.")
         elements.append(Image(resized[0], width=469, height=716))
         elements.append(PageBreak())
         # Ajout du sommaire
         add_simple_table_of_contents(elements)
 
-        # Sections manuelles pour la version synchrone
+        # Sections manuelles
         sections = [
             ("Informations personnelles", 
              f"Commence le rapport par une introduction personnalisée en rappelant les informations suivantes : "
@@ -312,26 +334,30 @@ def generate_estimation():
             section = generate_estimation_section(prompt)
             elements.extend(section)
             elements.append(PageBreak())
+        logging.info("Toutes les sections ont été générées.")
 
         # Page de fin
         if len(resized) > 1:
             elements.append(Image(resized[1], width=469, height=716))
+        logging.info("Page de fin ajoutée.")
 
         doc.build(elements)
+        logging.info("PDF généré avec succès.")
         return send_file(filename, as_attachment=True)
 
     except Exception as e:
+        logging.error(f"Erreur dans generate_estimation: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 # ==============================
 # Endpoints pour génération asynchrone avec faux curseur et intégration DVF
 # ==============================
-
 progress_map = {}  # job_id -> progression (0-100)
 results_map = {}   # job_id -> chemin du PDF généré
 
 def generate_estimation_background(job_id, form_data):
     try:
+        logging.info(f"Démarrage de la génération asynchrone pour job {job_id}...")
         progress_map[job_id] = 0
         time.sleep(1)
         progress_map[job_id] = 40
@@ -348,7 +374,7 @@ def generate_estimation_background(job_id, form_data):
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
                     resize_image(img_path, tmp.name)
                     resized.append(tmp.name)
-                    
+        logging.info("Page de garde (asynchrone) préparée.")
         if resized:
             elements.append(Image(resized[0], width=469, height=716))
         elements.append(PageBreak())
@@ -364,6 +390,7 @@ def generate_estimation_background(job_id, form_data):
         elements.append(Paragraph("Tableau comparatif des ventes récentes dans le secteur :", styles['Heading3']))
         elements.extend(markdown_to_elements(dvf_summary))
         elements.append(PageBreak())
+        logging.info("Tableau comparatif DVF ajouté.")
         
         # Intégration des données DVF : graphique
         dvf_chart_path = generate_dvf_chart(form_data)
@@ -371,6 +398,7 @@ def generate_estimation_background(job_id, form_data):
             elements.append(center_image(dvf_chart_path, width=400, height=300))
             elements.append(Paragraph("Graphique : Évolution du prix moyen au m²", styles['Heading3']))
             elements.append(PageBreak())
+            logging.info("Graphique DVF ajouté.")
         progress_map[job_id] = 80
         time.sleep(1)
         
@@ -416,8 +444,10 @@ def generate_estimation_background(job_id, form_data):
         doc.build(elements)
         progress_map[job_id] = 100
         results_map[job_id] = filename
+        logging.info(f"Rapport asynchrone généré pour job {job_id}.")
         
     except Exception as e:
+        logging.error(f"Erreur dans generate_estimation_background: {str(e)}")
         progress_map[job_id] = -1
         results_map[job_id] = None
 
@@ -425,6 +455,7 @@ def generate_estimation_background(job_id, form_data):
 def start_estimation():
     form_data = request.json or {}
     job_id = str(uuid.uuid4())
+    logging.info(f"Démarrage du job asynchrone {job_id}...")
     thread = threading.Thread(target=generate_estimation_background, args=(job_id, form_data))
     thread.start()
     return jsonify({"job_id": job_id})
@@ -452,5 +483,5 @@ def home():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    print(f"✅ Démarrage de l'API sur le port {port}")
+    logging.info(f"✅ Démarrage de l'API sur le port {port}")
     app.run(host="0.0.0.0", port=port)
