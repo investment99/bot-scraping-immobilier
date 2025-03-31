@@ -150,9 +150,9 @@ def load_dvf_data_avance(form_data):
 
 def get_dvf_comparables(form_data):
     try:
-        df = load_dvf_data_avance(form_data)
-        if df is None or df.empty:
-            return "Aucune donnée DVF trouvée pour cette estimation."
+        df, error = load_dvf_data_avance(form_data)
+      if error or df is None or df.empty:
+      return f"Données indisponibles pour cette estimation. Erreur : {error or 'Pas de données.'}"
 
         df["prix_m2"] = df["Valeur fonciere"] / df["Surface reelle bati"]
         df = df.sort_values(by="Date mutation", ascending=False).head(10)
@@ -306,7 +306,7 @@ def generate_estimation():
         elements.append(Image(resized[0], width=469, height=716))
         elements.append(PageBreak())
         # ✅ Sommaire
-        add_simple_table_of_contents(elements)
+        
 
         # Ajout d'un sommaire (facultatif)
 
