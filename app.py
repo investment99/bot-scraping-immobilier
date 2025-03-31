@@ -48,7 +48,6 @@ def normalize_columns(df):
         "surfacereellebati": "surface_reelle_bati",
         "datemutation": "date_mutation",
         "typelocal": "type_local",
-        "type_local": "type_local",  # si jamais déjà propre
         "commune": "commune",
         "departement": "departement",
         "nomvoie": "nom_voie",
@@ -56,17 +55,18 @@ def normalize_columns(df):
     }
     df = df.rename(columns=rename_map)
 
-    # Combine adresse si nom_voie et numero_voie existent
-    if "adresse" not in df.columns and "adresse_nom_voie" in df.columns:
-        df["adresse"] = df["adresse_nom_voie"]
-        if "adresse_numero" in df.columns:
-            df["adresse"] = df["adresse_numero"].astype(str) + " " + df["adresse"]
+    # Création de la colonne adresse
+    if "numero_voie" in df.columns and "nom_voie" in df.columns:
+        df["adresse"] = df["numero_voie"].astype(str) + " " + df["nom_voie"]
+    elif "nom_voie" in df.columns:
+        df["adresse"] = df["nom_voie"]
 
     # Normalise code_postal
     if "code_postal" in df.columns:
         df["code_postal"] = df["code_postal"].astype(str).str.zfill(5)
 
     return df
+
 
 
 def markdown_to_elements(md_text):
