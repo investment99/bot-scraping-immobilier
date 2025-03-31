@@ -245,10 +245,15 @@ def generate_dvf_chart(form_data):
             return None
 
         logging.info(f"Chargement du fichier DVF pour le graphique: {dvf_path}")
-        df = pd.read_csv(dvf_path, sep=";", compression="gzip", low_memory=False)
+        df = pd.read_csv(dvf_path, compression="gzip", low_memory=False)  # 🧠 plus de sep buggué
         df = normalize_columns(df)
 
+        if "code_postal" not in df.columns:
+            logging.error("❌ La colonne 'code_postal' est absente du fichier après normalisation.")
+            return None
+
         df["code_postal"] = df["code_postal"].astype(str).str.zfill(5)
+        df = df[df["code_postal"] == code_postal]
         df = df[df["type_local"].isin(["Appartement", "Maison"])]
         df = df[(df["surface_reelle_bati"] > 10) & (df["valeur_fonciere"] > 1000)]
         df["prix_m2"] = df["valeur_fonciere"] / df["surface_reelle_bati"]
@@ -268,10 +273,10 @@ def generate_dvf_chart(form_data):
         plt.savefig(tmp_img.name)
         plt.close()
         elapsed = time.time() - start_time
-        logging.info(f"Graphique DVF généré en {elapsed:.2f} secondes.")
+        logging.info(f"📈 Graphique DVF généré en {elapsed:.2f} secondes.")
         return tmp_img.name
     except Exception as e:
-        logging.error(f"Erreur dans generate_dvf_chart: {str(e)}")
+        logging.error(f"💥 Erreur dans generate_dvf_chart : {str(e)}")
         return None
 
 from reportlab.lib.enums import TA_CENTER
