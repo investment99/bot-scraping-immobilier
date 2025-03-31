@@ -38,8 +38,9 @@ DVF_FOLDER = "./dvf_data/"
 
 def normalize_columns(df):
     """
-    Corrige les noms de colonnes DVF (minuscules, trim, remplacements légers).
+    Nettoie et renomme toutes les colonnes DVF + fusionne adresse + force les types.
     """
+    # Normalisation des noms de colonnes
     df.columns = [c.strip().lower().replace(" ", "_") for c in df.columns]
 
     rename_map = {
@@ -49,19 +50,27 @@ def normalize_columns(df):
         "type_local": "type_local",
         "code_postal": "code_postal",
         "adresse_nom_voie": "nom_voie",
-        "adresse_numero": "numero_voie"
-}
+        "adresse_numero": "numero_voie",
+    }
     df = df.rename(columns=rename_map)
 
+    # 🔐 Force type str + nettoyage
+    if "code_postal" in df.columns:
+        df["code_postal"] = df["code_postal"].astype(str).str.extract(r"(\d{5})")[0]
+
+    if "numero_voie" in df.columns:
+        df["numero_voie"] = df["numero_voie"].astype(str).str.replace(r"\.0$", "", regex=True).str.strip()
+
+    if "nom_voie" in df.columns:
+        df["nom_voie"] = df["nom_voie"].astype(str).str.strip()
+
     if "numero_voie" in df.columns and "nom_voie" in df.columns:
-        df["adresse"] = df["numero_voie"].astype(str) + " " + df["nom_voie"]
+        df["adresse"] = df["numero_voie"] + " " + df["nom_voie"]
     elif "nom_voie" in df.columns:
         df["adresse"] = df["nom_voie"]
 
-    if "code_postal" in df.columns:
-        df["adresse"] = df["numero_voie"].astype(str) + " " + df["nom_voie"].astype(str)
-
     return df
+
 
 
 def markdown_to_elements(md_text):
@@ -188,15 +197,19 @@ def load_dvf_data_avance(form_data):
         logging.info("📊 Lignes après filtrage code_postal=%s : %d", code_postal, len(df))
 
         df = df[df["type_local"].isin(["Appartement", "Maison"])]
-        logging.info("📊 Lignes après filtrage type_local=%s : %d", type_bien, len(df))
+        logging.info("📊 Lignes après filtrage type_local=%s : %d", type_bien, len(df)# Sauvegarde avant le filtrage d'adresse
+        df_initial = df.copy()
 
         if adresse:
             mots = adresse.lower().split()
             df = df[df["adresse"].notna()]
             df = df[df["adresse"].apply(lambda x: any(mot in x.lower() for mot in mots))]
-            logging.info("📊 Lignes après filtrage adresse='%s' : %d", adresse, len(df))
+            logging.info(f"📊 Lignes après filtrage adresse='{adresse}' : {len(df)}")
 
-        if "surface_reelle_bati" not in df.columns or "valeur_fonciere" not in df.columns:
+            if df.empty:
+            logging.warning("⚠️ Aucune correspondance sur l’adresse, on garde tous les biens du code postal.")
+            df = df_initial
+if "surface_reelle_bati" not in df.columns or "valeur_fonciere" not in df.columns:
             logging.error("❌ Colonnes 'surface_reelle_bati' ou 'valeur_fonciere' absentes !")
             return None, "Colonnes manquantes"
 
