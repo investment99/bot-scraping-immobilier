@@ -119,43 +119,30 @@ def add_section_title(elements, title):
     elements.append(Paragraph(title, title_style))
     elements.append(Spacer(1, 12))
 
-def generate_estimation_section(prompt, min_tokens=1200):
+def generate_estimation_section(prompt, min_tokens=800):
     logging.info("Génération de la section d'estimation avec OpenAI...")
-    
-    # Exemple d'un prompt détaillé :
-    prompt_detaille = f"""
-    Voici les données du bien à estimer :
-
-    - Adresse : {form_data['adresse']}
-    - Type de bien : {form_data['type_bien']}
-    - Surface : {form_data['surface_bien']} m²
-    - Prix actuel du bien : {form_data['prix']}
-    - Dernières transactions dans ce secteur : {form_data['dvf_comparatif']}
-
-    Utilise ces informations pour estimer la valeur actuelle du bien, en tenant compte des facteurs suivants :
-    1. Comparaison des prix au m² dans la zone avec les 10 dernières transactions similaires (données DVF).
-    2. L'évolution récente du marché immobilier dans cette zone, en prenant en compte l'impact des développements futurs et des changements économiques (sources externes).
-    3. Facteurs de correction : âge du bien, état général, équipements.
-    4. Estimation basée sur ces données, avec une analyse de l'évolution possible du prix dans les 5 et 10 prochaines années.
-
-    Donne-moi une estimation complète, détaillée, et justifiée, en intégrant toutes les informations disponibles.
-    """
-
     response = client.chat.completions.create(
         model="gpt-4",
         messages=[
             {
                 "role": "system",
-                "content": "Tu es un expert immobilier en France. Ta mission est d'estimer la valeur d'un bien immobilier en utilisant toutes les données disponibles et de formuler une analyse complète et justifiée."
+                "content": (
+                    "Tu es un expert en immobilier en France. Ta mission est de rédiger un rapport d'analyse détaillé, synthétique et professionnel "
+                    "pour un bien immobilier. Le rapport doit être limité à 5 pages d'analyse (hors pages de garde) et inclure :\n"
+                    "1. Une introduction personnalisée reprenant les informations du client (civilité, prénom, nom, adresse, etc.).\n"
+                    "2. Une comparaison des prix des biens récemment vendus dans le même secteur, avec des tableaux récapitulatifs (prix au m², rendement locatif en pourcentage, etc.).\n"
+                    "3. Des prévisions claires sur l'évolution du marché à 5 et 10 ans.\n"
+                    "4. Une description précise de la localisation du bien sur un plan (par exemple, coordonnées géographiques ou description détaillée de l'emplacement).\n"
+                    "Utilise intelligemment les données fournies et ne te contente pas de les répéter. Sois synthétique et oriente ton analyse vers des recommandations pratiques."
+                )
             },
-            {"role": "user", "content": prompt_detaille}
+            {"role": "user", "content": prompt}
         ],
         max_tokens=min_tokens,
         temperature=0.8,
     )
     logging.info("Section générée par OpenAI.")
     return markdown_to_elements(response.choices[0].message.content)
-
 
 def resize_image(image_path, output_path, target_size=(469, 716)):
     from PIL import Image as PILImage
@@ -502,20 +489,37 @@ def generate_estimation_background(job_id, form_data):
             f"# 3. Environnement & Quartier\n"
             f"Adresse : {form_data.get('adresse')} - Quartier : {form_data.get('quartier')} - "
             f"Commerces à proximité : {form_data.get('distance_commerces')} - Atouts : {form_data.get('atouts_quartier')}.\n\n"
-
+ 
             f"# 4. Données DVF (comparatif + graphique)\n"
             f"Les 10 dernières ventes sont affichées dans le tableau, ainsi que le graphique d'évolution des prix au m² dans le secteur {form_data.get('code_postal')}.\n\n"
 
             f"# 5. Estimation et Analyse IA\n"
-            f"Estime la valeur actuelle du bien basé sur les informations ci-dessus.\n"
-            f"Historique du marché : temps sur le marché : {form_data.get('temps_marche')} - offres : {form_data.get('offres')} - "
-            f"raison de vente : {form_data.get('raison_vente')} - prix similaires : {form_data.get('prix_similaires')}.\n"
-            f"Prix visé par le client : {form_data.get('prix')} (négociable : {form_data.get('negociation')}).\n\n"
+            f"En me basant sur les informations du bien et du marché, voici l'estimation pour le bien situé à {form_data.get('adresse')} :\n"
+            f"### Estimation du prix du bien\n"
+            f"Le prix estimé du bien est de {form_data.get('prix')}. Cette estimation tient compte des données du marché local, "
+            f"des transactions récentes dans le secteur et des caractéristiques spécifiques du bien. "
+            f"En comparaison avec les ventes récentes dans le quartier, ce prix semble raisonnable ou pourrait être ajusté selon l'état général et les équipements du bien.\n"
+            f"### Analyse du marché local\n"
+            f"Les données DVF révèlent que des biens similaires dans le secteur (type : {form_data.get('type_bien')}, "
+            f"surface : {form_data.get('surface')} m²) se vendent en moyenne à {form_data.get('prix_similaires')}. "
+            f"Cela suggère que votre prix est légèrement {('au-dessus' if form_data.get('prix') > float(form_data.get('prix_similaires')) else 'en dessous')} "
+            f"du marché. Si le bien est correctement entretenu, une légère révision à la baisse pourrait rendre l'offre plus attractive pour les acheteurs.\n"
+            f"### Historique du bien\n"
+            f"Le bien a été mis sur le marché depuis {form_data.get('temps_marche')} avec {form_data.get('offres')} offres reçues. "
+            f"Cela pourrait indiquer que la demande est modérée dans ce secteur. "
+            f"Les raisons de la vente (ex. : {form_data.get('raison_vente')}) peuvent également influencer l'attrait du bien.\n\n"
 
             f"# 6. Recommandations\n"
-            f"Conseils pratiques pour améliorer la vente. Bien occupé : {form_data.get('occupe')} - dettes : {form_data.get('dettes')} - charges : {form_data.get('charges_fixes')}.\n"
-            f"⚠️ Utilise **en priorité** les données DVF comparatives et les tendances graphiques pour appuyer ton estimation."
-        )
+            f"Voici quelques recommandations pour maximiser la valeur de votre bien :\n"
+            f"1. Si des travaux récents sont nécessaires (ex. : {form_data.get('travaux_details')}), il est recommandé de les finaliser avant la vente. "
+            f"Un bien bien entretenu peut justifier un prix plus élevé.\n"
+            f"2. Mettez en avant les atouts du quartier (ex. : {form_data.get('atouts_quartier')}) pour attirer les acheteurs qui recherchent un cadre de vie agréable.\n"
+            f"3. Considérez une révision du prix en fonction de la concurrence locale, notamment les prix observés dans les dernières ventes comparables.\n"
+            f"4. Si possible, proposez un plan de financement flexible ou une négociation sur le prix pour faciliter la vente.\n"
+            f"5. Enfin, assurez-vous que tous les documents légaux et administratifs sont à jour (ex. : {form_data.get('documents')}), "
+            f"ce qui peut renforcer la confiance des acheteurs.\n"
+)
+
         section = generate_estimation_section(combined_prompt)
         elements.extend(section)
         elements.append(PageBreak())
