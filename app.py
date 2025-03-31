@@ -160,28 +160,26 @@ def load_dvf_data_avance(form_data):
         file_path_csv = os.path.join(DVF_FOLDER, f"{dept_code}.csv")
 
         logging.info(f"Recherche du fichier DVF pour le département {dept_code}...")
+
         if os.path.exists(file_path_gz):
             logging.info(f"Chargement du fichier compressé {file_path_gz}")
-            df = pd.read_csv(file_path_gz, sep="|", low_memory=False)
-     
-            # 🔍 DEBUG : Afficher les colonnes brutes
-            logging.info("🔍 Colonnes brutes lues par pandas :", df.columns.tolist())
-    
+            df = pd.read_csv(file_path_gz, sep=",", low_memory=False)
+            logging.info("✅ Colonnes après lecture GZ : %s", df.columns.tolist())
+
         elif os.path.exists(file_path_csv):
             logging.info(f"Chargement du fichier CSV {file_path_csv}")
-            df = pd.read_csv(file_path_csv, sep="|", low_memory=False)
-    
-            # 🔍 DEBUG : Afficher les colonnes brutes
-            logging.info("🔍 Colonnes brutes lues par pandas :", df.columns.tolist())
+            df = pd.read_csv(file_path_csv, sep=",", low_memory=False)
+            logging.info("✅ Colonnes après lecture CSV : %s", df.columns.tolist())
 
         else:
             logging.error(f"Aucun fichier trouvé pour le département {dept_code}.")
             return None, f"Aucun fichier trouvé pour le département {dept_code}."
 
-        # Normalisation des colonnes via la fonction normalize_columns
+        # 🔄 Normalisation
         df = normalize_columns(df)
-        logging.debug(f"Colonnes après normalisation: {df.columns.tolist()}")
-
+        logging.debug(f"Colonnes après normalisation : {df.columns.tolist()}")
+        
+        # 💡 Et le reste du filtrage...
         df = df[df["code_postal"] == code_postal]
         logging.info(f"Filtrage sur code_postal={code_postal} terminé, {len(df)} enregistrements trouvés.")
 
@@ -191,6 +189,7 @@ def load_dvf_data_avance(form_data):
 
         if adresse:
             df = df[df["adresse"].str.lower().str.contains(adresse.split()[0], na=False)]
+
         df = df[(df["surface_reelle_bati"] > 10) & (df["valeur_fonciere"] > 1000)]
         if surface_bien > 0:
             df = df[df["surface_reelle_bati"].between(surface_bien * 0.7, surface_bien * 1.3)]
@@ -199,11 +198,12 @@ def load_dvf_data_avance(form_data):
         df = df.sort_values(by="date_mutation", ascending=False)
 
         elapsed = time.time() - start_time
-        logging.info(f"Chargement et filtrage DVF terminé en {elapsed:.2f} secondes ({len(df)} enregistrements après filtrage).")
+        logging.info(f"✅ Chargement DVF terminé en {elapsed:.2f}s ({len(df)} lignes après filtrage).")
         return df, None
+
     except Exception as e:
-        logging.error(f"Erreur dans load_dvf_data_avance: {str(e)}")
-        return None, f"Erreur lors du chargement avancé des données DVF : {str(e)}"
+        logging.error(f"❌ Erreur dans load_dvf_data_avance: {str(e)}")
+        return None, f"Erreur DVF : {str(e)}"
 
 def get_dvf_comparables(form_data):
     try:
