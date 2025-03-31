@@ -489,37 +489,20 @@ def generate_estimation_background(job_id, form_data):
             f"# 3. Environnement & Quartier\n"
             f"Adresse : {form_data.get('adresse')} - Quartier : {form_data.get('quartier')} - "
             f"Commerces à proximité : {form_data.get('distance_commerces')} - Atouts : {form_data.get('atouts_quartier')}.\n\n"
- 
+
             f"# 4. Données DVF (comparatif + graphique)\n"
             f"Les 10 dernières ventes sont affichées dans le tableau, ainsi que le graphique d'évolution des prix au m² dans le secteur {form_data.get('code_postal')}.\n\n"
 
             f"# 5. Estimation et Analyse IA\n"
-            f"En me basant sur les informations du bien et du marché, voici l'estimation pour le bien situé à {form_data.get('adresse')} :\n"
-            f"### Estimation du prix du bien\n"
-            f"Le prix estimé du bien est de {form_data.get('prix')}. Cette estimation tient compte des données du marché local, "
-            f"des transactions récentes dans le secteur et des caractéristiques spécifiques du bien. "
-            f"En comparaison avec les ventes récentes dans le quartier, ce prix semble raisonnable ou pourrait être ajusté selon l'état général et les équipements du bien.\n"
-            f"### Analyse du marché local\n"
-            f"Les données DVF révèlent que des biens similaires dans le secteur (type : {form_data.get('type_bien')}, "
-            f"surface : {form_data.get('surface')} m²) se vendent en moyenne à {form_data.get('prix_similaires')}. "
-            f"Cela suggère que votre prix est légèrement {('au-dessus' if form_data.get('prix') > float(form_data.get('prix_similaires')) else 'en dessous')} "
-            f"du marché. Si le bien est correctement entretenu, une légère révision à la baisse pourrait rendre l'offre plus attractive pour les acheteurs.\n"
-            f"### Historique du bien\n"
-            f"Le bien a été mis sur le marché depuis {form_data.get('temps_marche')} avec {form_data.get('offres')} offres reçues. "
-            f"Cela pourrait indiquer que la demande est modérée dans ce secteur. "
-            f"Les raisons de la vente (ex. : {form_data.get('raison_vente')}) peuvent également influencer l'attrait du bien.\n\n"
+            f"Estime la valeur actuelle du bien basé sur les informations ci-dessus.\n"
+            f"Historique du marché : temps sur le marché : {form_data.get('temps_marche')} - offres : {form_data.get('offres')} - "
+            f"raison de vente : {form_data.get('raison_vente')} - prix similaires : {form_data.get('prix_similaires')}.\n"
+            f"Prix visé par le client : {form_data.get('prix')} (négociable : {form_data.get('negociation')}).\n\n"
 
             f"# 6. Recommandations\n"
-            f"Voici quelques recommandations pour maximiser la valeur de votre bien :\n"
-            f"1. Si des travaux récents sont nécessaires (ex. : {form_data.get('travaux_details')}), il est recommandé de les finaliser avant la vente. "
-            f"Un bien bien entretenu peut justifier un prix plus élevé.\n"
-            f"2. Mettez en avant les atouts du quartier (ex. : {form_data.get('atouts_quartier')}) pour attirer les acheteurs qui recherchent un cadre de vie agréable.\n"
-            f"3. Considérez une révision du prix en fonction de la concurrence locale, notamment les prix observés dans les dernières ventes comparables.\n"
-            f"4. Si possible, proposez un plan de financement flexible ou une négociation sur le prix pour faciliter la vente.\n"
-            f"5. Enfin, assurez-vous que tous les documents légaux et administratifs sont à jour (ex. : {form_data.get('documents')}), "
-            f"ce qui peut renforcer la confiance des acheteurs.\n"
-)
-
+            f"Conseils pratiques pour améliorer la vente. Bien occupé : {form_data.get('occupe')} - dettes : {form_data.get('dettes')} - charges : {form_data.get('charges_fixes')}.\n"
+            f"⚠️ Utilise **en priorité** les données DVF comparatives et les tendances graphiques pour appuyer ton estimation."
+        )
         section = generate_estimation_section(combined_prompt)
         elements.extend(section)
         elements.append(PageBreak())
