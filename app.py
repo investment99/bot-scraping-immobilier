@@ -169,7 +169,6 @@ def get_dvf_comparables(form_data):
         return f"Voici les 10 dernières transactions similaires pour ce secteur :\n\n{table_md}"
     except Exception as e:
         return f"Données indisponibles pour cette estimation. Erreur : {str(e)}"
-"
         
         # Lecture du fichier en forçant la colonne code_postal en str
         df = pd.read_csv(dvf_path, sep="|", compression="gzip", dtype={"code_postal": str}, low_memory=False)
