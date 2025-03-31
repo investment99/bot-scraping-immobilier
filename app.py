@@ -159,55 +159,63 @@ def load_dvf_data_avance(form_data):
         if os.path.exists(file_path_gz):
             logging.info(f"📂 Chargement du fichier GZ : {file_path_gz}")
             df = pd.read_csv(file_path_gz, sep=",", low_memory=False)
+            logging.info("✅ Colonnes brutes : %s", df.columns.tolist())
+
         elif os.path.exists(file_path_csv):
             logging.info(f"📂 Chargement du fichier CSV : {file_path_csv}")
             df = pd.read_csv(file_path_csv, sep=",", low_memory=False)
+            logging.info("✅ Colonnes brutes : %s", df.columns.tolist())
+
         else:
-            logging.error(f"❌ Aucun fichier DVF trouvé pour le département {dept_code}")
+            logging.error(f"Aucun fichier trouvé pour le département {dept_code}.")
             return None, f"Aucun fichier trouvé pour le département {dept_code}."
 
-        logging.info(f"✅ Colonnes brutes : {df.columns.tolist()}")
+        logging.info("🔍 Exemple brut code_postal (avant normalisation) : %s", df["code_postal"].dropna().astype(str).unique()[:10])
+
+        # 🔄 Normalisation
         df = normalize_columns(df)
-        logging.info(f"✅ Colonnes après normalisation : {df.columns.tolist()}")
+        logging.info("✅ Colonnes après normalisation : %s", df.columns.tolist())
 
-        # Vérifications avant filtrage
-        logging.info("🔍 Présence 'surface_reelle_bati' : %s", 'surface_reelle_bati' in df.columns)
-        logging.info("🔍 Présence 'valeur_fonciere' : %s", 'valeur_fonciere' in df.columns)
-        logging.info("🔍 Présence 'adresse' : %s", 'adresse' in df.columns)
+        if "code_postal" in df.columns:
+            df["code_postal"] = df["code_postal"].astype(str).str.strip().str.zfill(5)
+            logging.info("🔍 code_postal après normalisation : %s", df["code_postal"].dropna().unique()[:10])
 
+        if "adresse" in df.columns:
+            logging.info("🔍 Exemple d'adresse après normalisation : %s", df["adresse"].dropna().unique()[:5])
+
+        # 💡 Et le reste du filtrage...
         df = df[df["code_postal"] == code_postal]
-        logging.info(f"📊 Lignes après filtrage code_postal={code_postal} : {len(df)}")
+        logging.info("📊 Lignes après filtrage code_postal=%s : %d", code_postal, len(df))
 
         df = df[df["type_local"].isin(["Appartement", "Maison"])]
-        if type_bien in ["Appartement", "Maison"]:
-            df = df[df["type_local"] == type_bien]
-        logging.info(f"📊 Lignes après filtrage type_local={type_bien} : {len(df)}")
+        logging.info("📊 Lignes après filtrage type_local=%s : %d", type_bien, len(df))
 
-        if adresse and "adresse" in df.columns:
-            mots = adresse.split()
+        if adresse:
+            mots = adresse.lower().split()
             df = df[df["adresse"].notna()]
             df = df[df["adresse"].apply(lambda x: any(mot in x.lower() for mot in mots))]
-            logging.info(f"📊 Lignes après filtrage adresse='{adresse}' : {len(df)}")
+            logging.info("📊 Lignes après filtrage adresse='%s' : %d", adresse, len(df))
 
         if "surface_reelle_bati" not in df.columns or "valeur_fonciere" not in df.columns:
             logging.error("❌ Colonnes 'surface_reelle_bati' ou 'valeur_fonciere' absentes !")
             return None, "Colonnes manquantes"
 
         df = df[(df["surface_reelle_bati"] > 10) & (df["valeur_fonciere"] > 1000)]
+
         if surface_bien > 0:
             df = df[df["surface_reelle_bati"].between(surface_bien * 0.7, surface_bien * 1.3)]
-        logging.info(f"📊 Lignes après filtrage surface : {len(df)}")
 
         df["prix_m2"] = df["valeur_fonciere"] / df["surface_reelle_bati"]
         df = df.sort_values(by="date_mutation", ascending=False)
 
         elapsed = time.time() - start_time
-        logging.info(f"✅ Chargement DVF terminé en {elapsed:.2f}s avec {len(df)} lignes finales.")
+        logging.info(f"✅ Chargement DVF terminé en {elapsed:.2f}s ({len(df)} lignes après filtrage).")
         return df, None
 
     except Exception as e:
-        logging.exception("❌ Erreur dans load_dvf_data_avance")
+        logging.error(f"❌ Erreur dans load_dvf_data_avance: {str(e)}")
         return None, f"Erreur DVF : {str(e)}"
+
 
 def get_dvf_comparables(form_data):
     try:
