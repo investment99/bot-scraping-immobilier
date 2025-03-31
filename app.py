@@ -194,9 +194,6 @@ def load_dvf_data_avance(form_data):
 
         # 💡 Et le reste du filtrage...
         df = df[df["code_postal"] == code_postal]
-        logging.info("📊 Lignes après filtrage code_postal=%s : %d", code_postal, len(df))
-
-        df = df[df["type_local"].isin(["Appartement", "Maison"])]
         logging.info("📊 Lignes après filtrage type_local=%s : %d", type_bien, len(df))  # Sauvegarde avant le filtrage d'adresse
         df_initial = df.copy()
 
@@ -207,8 +204,10 @@ def load_dvf_data_avance(form_data):
             logging.info(f"📊 Lignes après filtrage adresse='{adresse}' : {len(df)}")
 
             if df.empty:
-            logging.warning("⚠️ Aucune correspondance sur l’adresse, on garde tous les biens du code postal.")
-            df = df_initial
+                logging.warning("⚠️ Aucune correspondance sur l’adresse, on garde tous les biens du code postal.")
+                df = df_initial
+
+
 if "surface_reelle_bati" not in df.columns or "valeur_fonciere" not in df.columns:
             logging.error("❌ Colonnes 'surface_reelle_bati' ou 'valeur_fonciere' absentes !")
             return None, "Colonnes manquantes"
