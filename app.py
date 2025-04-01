@@ -505,7 +505,7 @@ def generate_estimation_background(job_id, form_data):
             f"Rédige une introduction synthétique et professionnelle pour {signature}, concernant l'estimation de son bien situé à "
             f"{form_data.get('adresse')} ({form_data.get('code_postal')}). Ce rapport repose uniquement sur les réponses du formulaire et les données DVF."
         )
-        elements.extend(generate_estimation_section(intro_prompt, min_tokens=300))
+        elements.extend(generate_estimation_section(intro_prompt, min_tokens=300)
         progress_map[job_id] = 40
 
         # ✅ 4. Analyse des Données DVF
