@@ -143,7 +143,11 @@ def generate_estimation_section(prompt, min_tokens=800):
         temperature=0.8,
     )
     logging.info("Section générée par OpenAI.")
-    return markdown_to_elements(response.choices[0].message.content)
+    content = response.choices[0].message.content.strip()
+    if not content.endswith(('.', '!', '?')):
+        content += "."
+    return markdown_to_elements(content)
+
 
 def resize_image(image_path, output_path, target_size=(469, 716)):
     from PIL import Image as PILImage
@@ -292,6 +296,11 @@ def generate_dvf_chart(form_data):
             return None
 
         df["code_postal"] = df["code_postal"].str.strip()
+        code_postal = str(form_data.get("code_postal", "")).zfill(5)
+        type_bien = form_data.get("type_bien", "").capitalize()
+        df = df[df["code_postal"] == code_postal]
+        df = df[df["type_local"] == type_bien]
+
         df = df[df["type_local"].isin(["Appartement", "Maison"])]
         df = df[(df["surface_reelle_bati"] > 10) & (df["valeur_fonciere"] > 1000)]
         df["prix_m2"] = df["valeur_fonciere"] / df["surface_reelle_bati"]
