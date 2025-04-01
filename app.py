@@ -346,22 +346,22 @@ def generate_section_estimation(form_data):
     prompt = (
          f"=== DONNÉES DVF ===\n{dvf_data}\n\n"
          f"=== SECTION: ESTIMATION & ANALYSE ===\n"
-         f"Analyse les données suivantes pour estimer le prix total du bien de {prenom_nom} :\n"
+         f"Analyse en détail les données suivantes pour estimer le prix total du bien de {prenom_nom} :\n"
          f"- Type : {form_data.get('type_bien', '')}, Surface : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface', '')} m²\n"
          f"- Quartier : {form_data.get('quartier', '')}, Code postal : {form_data.get('code_postal', '')}\n"
-         f"- État : {form_data.get('etat_general', '')}, Travaux : {form_data.get('travaux_recent', '')} ({form_data.get('travaux_details', '')})\n"
-         f"- Historique : temps sur le marché ({form_data.get('temps_marche', '')}), offres : {form_data.get('offres', '')}, "
-         f"raison de vente : {form_data.get('raison_vente', '')}\n"
+         f"- État général : {form_data.get('etat_general', '')}, Travaux : {form_data.get('travaux_recent', '')} ({form_data.get('travaux_details', '')})\n"
+         f"- Historique : temps sur le marché ({form_data.get('temps_marche', '')}), offres : {form_data.get('offres', '')}, raison de vente : {form_data.get('raison_vente', '')}\n"
          f"- Prix similaires : {form_data.get('prix_similaires', '')}, prix visé : {form_data.get('prix', '')} (négociable : {form_data.get('negociation', '')})\n\n"
-         f"Appuie-toi **exclusivement** sur les ventes DVF précédentes (surface, prix/m², type) pour calculer le prix total estimé du bien.\n"
-         f"➡️ Fournis en début de réponse un tableau markdown présentant les critères suivants : "
+         f"Appuie-toi **exclusivement** sur les ventes DVF précédentes ainsi que sur des données réelles et à jour disponibles sur Internet pour calculer le prix total estimé du bien.\n"
+         f"➡️ En début de réponse, fournis un tableau markdown présentant les critères suivants : "
          f"Type de bien, Surface (m²), Prix/m² (€), Prix total estimé (€).\n"
          f"=== FIN DU TABLEAU ===\n\n"
-         f"Ensuite, développe une analyse détaillée en indiquant l'estimation globale du prix total du bien en euros, "
-         f"en justifiant ta méthode de calcul et en donnant, le cas échéant, une fourchette de valeurs.\n"
+         f"Ensuite, rédige une analyse détaillée en indiquant une estimation globale sous forme de fourchette du prix total du bien en euros. "
+         f"Précise ta méthode de calcul en te basant sur les données DVF et sur des informations réelles issues d'Internet, et indique la marge d'erreur éventuelle.\n"
          f"Ne commence pas par 'Madame, Monsieur' et ne termine pas par un nom ni signature."
     )
-    return generate_estimation_section(prompt, min_tokens=500)
+    return generate_estimation_section(prompt, min_tokens=1200)
+
 
 @app.route("/generate_estimation", methods=["POST"])
 def generate_estimation():
