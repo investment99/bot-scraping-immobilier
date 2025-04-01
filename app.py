@@ -536,7 +536,24 @@ def generate_estimation_background(job_id, form_data):
         elements.append(PageBreak())
         progress_map[job_id] = 90
         time.sleep(1)
+        # Intégration des données DVF : tableau comparatif
+        from reportlab.lib.styles import getSampleStyleSheet
+        styles = getSampleStyleSheet()
+        dvf_summary = get_dvf_comparables(form_data)
+        elements.append(Paragraph("Tableau comparatif des ventes récentes dans le secteur :", styles['Heading3']))
+        elements.extend(markdown_to_elements(dvf_summary))
+        elements.append(PageBreak())
+        logging.info("Tableau comparatif DVF ajouté.")
         
+        # Intégration des données DVF : graphique
+        dvf_chart_path = generate_dvf_chart(form_data)
+        if dvf_chart_path and os.path.exists(dvf_chart_path):
+            elements.append(center_image(dvf_chart_path, width=400, height=300))
+            elements.append(Paragraph("Graphique : Évolution du prix moyen au m²", styles['Heading3']))
+            elements.append(PageBreak())
+            logging.info("Graphique DVF ajouté.")
+        progress_map[job_id] = 80
+        time.sleep(1)
         if len(resized) > 1:
             elements.append(Image(resized[1], width=469, height=716))
         progress_map[job_id] = 90
