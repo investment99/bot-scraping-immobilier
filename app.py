@@ -382,37 +382,39 @@ def generate_estimation():
         # Sections manuelles
         # Nouvelle structure logique et pro du rapport
         sections = [
+            ("Résumé des données du questionnaire", resume_data),
+
             ("Introduction et Détails du bien", 
-            f"Client : {form_data.get('civilite', '')} {form_data.get('prenom', '')} {form_data.get('nom', '')}, domicilié(e) à {form_data.get('adresse_personnelle', '')} ({form_data.get('code_postal', '')}).\n"
-            f"Email : {form_data.get('email', '')}, téléphone : {form_data.get('telephone', '')}.\n\n"
-            f"Type de bien : {form_data.get('type_bien', '')}.\n"
-            f"État général : {form_data.get('etat_general', '')}, travaux récents : {form_data.get('travaux_recent', '')}, détails : {form_data.get('travaux_details', '')}, problèmes : {form_data.get('problemes', '')}.\n"
-            f"Équipements : {form_data.get('equipement_cuisine', '')}, {form_data.get('electromenager', '')}, sécurité : {form_data.get('securite', '')}.\n"
-            f"DPE : {form_data.get('dpe', '')}, orientation : {form_data.get('orientation', '')}, vue : {form_data.get('vue', '')}.\n"
-            f"Superficie : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface') or 'Non précisée'} m²."),
-    
+             f"Client : {form_data.get('civilite', '')} {form_data.get('prenom', '')} {form_data.get('nom', '')}, "
+             f"domicilié(e) à {form_data.get('adresse_personnelle', '')} ({form_data.get('code_postal', '')}).\n"
+             f"Email : {form_data.get('email', '')}, téléphone : {form_data.get('telephone', '')}.\n\n"
+             f"Type de bien : {form_data.get('type_bien', '')}, superficie : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface')} m².\n"
+             f"État général : {form_data.get('etat_general', '')}, travaux : {form_data.get('travaux_recent', '')} ({form_data.get('travaux_details', '')}), "
+             f"problèmes : {form_data.get('problemes', '')}.\n"
+             f"Équipements : {form_data.get('equipement_cuisine', '')}, électroménagers : {form_data.get('electromenager', '')}, sécurité : {form_data.get('securite', '')}.\n"
+             f"DPE : {form_data.get('dpe', '')}, orientation : {form_data.get('orientation', '')}, vue : {form_data.get('vue', '')}."),
+
             ("Analyse des Données DVF", 
-            "Voici les données comparatives extraites du fichier DVF officiel. Utilise **ces données comme base prioritaire pour l’estimation** et **ne les ignore jamais**. Tu trouveras un tableau récapitulatif des dernières ventes similaires, suivi d’un graphique des prix au m² sur les dernières années."),
-    
+             "Voici les données comparatives extraites du fichier DVF officiel. Utilise **ces données comme base prioritaire pour l’estimation** et **ne les ignore jamais**. "
+             "Tu trouveras un tableau récapitulatif des dernières ventes similaires, suivi d’un graphique des prix au m² sur les dernières années."),
+
             ("Environnement & Quartier", 
-            f"Adresse du bien : {form_data.get('adresse', '')}, quartier : {form_data.get('quartier', '')}.\n"
-            f"Atouts du quartier : {form_data.get('atouts_quartier', '')}.\n"
-            f"Commerces : {form_data.get('distance_commerces', '')}, écoles primaires : {form_data.get('distance_primaires', '')}, secondaires : {form_data.get('distance_secondaires', '')}.\n"
-            f"Projets de développement : {form_data.get('developpement', '')}.\n"
-            f"Stationnement et circulation : {form_data.get('circulation', '')}.\n\n"
-            f"⚠️ Ne pas inventer les lieux, se baser uniquement sur les données fournies."),
-    
+             f"Adresse : {form_data.get('adresse', '')}, quartier : {form_data.get('quartier', '')}.\n"
+             f"Atouts : {form_data.get('atouts_quartier', '')}.\n"
+             f"Commodités : commerces ({form_data.get('distance_commerces', '')}), écoles primaires ({form_data.get('distance_primaires', '')}), secondaires ({form_data.get('distance_secondaires', '')}).\n"
+             f"Projets à venir : {form_data.get('developpement', '')}, circulation : {form_data.get('circulation', '')}."),
+
             ("Estimation & Analyse IA", 
-            f"Estime la valeur réelle de ce bien en t'appuyant **uniquement** sur les données DVF (tableau et graphique), les infos du formulaire et les tendances actuelles du marché immobilier local.\n"
-            f"Temps sur le marché : {form_data.get('temps_marche', '')}, offres reçues : {form_data.get('offres', '')}, raison de la vente : {form_data.get('raison_vente', '')}.\n"
-            f"Prix similaires : {form_data.get('prix_similaires', '')}, prix visé : {form_data.get('prix', '')} (négociable : {form_data.get('negociation', '')}).\n"
-            f"Donne une fourchette réaliste (en €), cohérente avec les données du tableau."),
-    
+             f"Estime la valeur réelle de ce bien (fourchette en €) en t'appuyant **exclusivement** sur les données DVF et les réponses ci-dessus.\n"
+             f"Historique : temps sur le marché ({form_data.get('temps_marche', '')}), offres : {form_data.get('offres', '')}, "
+             f"raison de vente : {form_data.get('raison_vente', '')}.\n"
+             f"Prix similaires : {form_data.get('prix_similaires', '')}, prix visé : {form_data.get('prix', '')} (négociable : {form_data.get('negociation', '')})."),
+
             ("Analyse prédictive et Recommandations", 
-            f"1. Analyse prédictive : comment la valeur de ce bien ({form_data.get('type_bien', '')}) pourrait évoluer dans les 5 à 10 prochaines années dans le quartier de {form_data.get('quartier', '')}, en fonction des projets et tendances locales.\n\n"
-            f"2. Recommandations : conseils concrets pour optimiser la vente.\n"
-            f"Occupation : {form_data.get('occupe', '')}, dettes : {form_data.get('dettes', '')}, charges fixes : {form_data.get('charges_fixes', '')}.\n"
-            f"Contraintes : {form_data.get('contraintes', '')}, documents : {form_data.get('documents', '')}, conditions : {form_data.get('conditions', '')}.")
+             f"📈 **Prévision** : Évolution potentielle du prix sur 5 à 10 ans dans la zone de {form_data.get('quartier', '')}, selon projets locaux et marché.\n\n"
+             f"✅ **Recommandations** :\n"
+             f"Occupation actuelle : {form_data.get('occupe', '')}, dettes : {form_data.get('dettes', '')}, charges : {form_data.get('charges_fixes', '')}.\n"
+             f"Contraintes : {form_data.get('contraintes', '')}, documents : {form_data.get('documents', '')}, conditions spéciales : {form_data.get('conditions', '')}.\n")
 ]
 
 
