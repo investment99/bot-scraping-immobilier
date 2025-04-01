@@ -523,20 +523,22 @@ def generate_estimation_background(job_id, form_data):
         add_section_title(elements, "Estimation & Analyse")
         prenom_nom = f"{form_data.get('civilite', '')} {form_data.get('prenom', '')} {form_data.get('nom', '')}".strip()
         estimation_prompt = (
-            f"Analyse les données suivantes pour estimer le prix du bien de {prenom_nom} :\n"
-            f"- Type : {form_data.get('type_bien', '')}, Surface : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface', '')} m²\n"
-            f"- Quartier : {form_data.get('quartier', '')}, Code postal : {form_data.get('code_postal', '')}\n"
-            f"- État : {form_data.get('etat_general', '')}, Travaux : {form_data.get('travaux_recent', '')} ({form_data.get('travaux_details', '')})\n"
-            f"- Historique : temps sur le marché ({form_data.get('temps_marche', '')}), offres : {form_data.get('offres', '')}, "
-            f"raison de vente : {form_data.get('raison_vente', '')}\n"
-            f"- Prix similaires : {form_data.get('prix_similaires', '')}, prix visé : {form_data.get('prix', '')} (négociable : {form_data.get('negociation', '')})\n\n"
-            f"Appuie-toi exclusivement sur les ventes comparables DVF listées plus haut (surface, prix/m², type).\n"
-            f"Fournis **obligatoirement** une **fourchette de prix estimée en euros** (ex : entre 1 100 000 et 1 250 000 €).\n"
-            f"N'inclus **aucun nom ni formule de politesse**. Commence directement l'analyse."
-       )
+            f"Tu es un expert immobilier. En te basant uniquement sur :\n"
+            f"- les données DVF précédemment listées (prix/m², surface, type de bien),\n"
+            f"- les caractéristiques du bien ({form_data.get('type_bien', '')}, "
+            f"{form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface', '')} m², "
+            f"état : {form_data.get('etat_general', '')}, quartier : {form_data.get('quartier', '')}),\n"
+            f"- l'historique (marché : {form_data.get('temps_marche', '')}, offres : {form_data.get('offres', '')}, "
+            f"raison de vente : {form_data.get('raison_vente', '')}),\n"
+            f"- et le prix visé ({form_data.get('prix', '')} €),\n\n"
+            f"Fournis une estimation réaliste sous forme de fourchette de prix en euros (ex: entre 270 000 € et 290 000 €).\n"
+            f"⚠️ Tu dois impérativement donner des chiffres crédibles basés sur les ventes DVF comparables.\n"
+            f"Puis rédige une analyse synthétique (maximum 2 paragraphes), sans débuter par 'Madame, Monsieur' ni terminer par une signature."
+        )
 
 
-        elements.extend(generate_estimation_section(estimation_prompt, min_tokens=500))
+
+        elements.extend(generate_estimation_section(estimation_prompt, min_tokens=600))
         elements.append(PageBreak())
         progress_map[job_id] = 80
 
@@ -552,7 +554,7 @@ def generate_estimation_background(job_id, form_data):
         )
 
 
-        elements.extend(generate_estimation_section(conclusion_prompt, min_tokens=300))
+        elements.extend(generate_estimation_section(conclusion_prompt, min_tokens=400))
 
         # ✅ 7. Page de fin + cordialement
         if len(resized) > 1:
