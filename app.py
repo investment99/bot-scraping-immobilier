@@ -120,33 +120,82 @@ def add_section_title(elements, title):
     elements.append(Paragraph(title, title_style))
     elements.append(Spacer(1, 12))
 
-def generate_estimation_section(prompt, min_tokens=800):
-    logging.info("Génération de la section d'estimation avec OpenAI...")
-    response = client.chat.completions.create(
-        model="gpt-4",
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "Tu es un expert en immobilier en France. Ta mission est de rédiger un rapport d'analyse détaillé, synthétique et professionnel "
-                    "pour un bien immobilier. Le rapport doit être limité à 5 pages d'analyse (hors pages de garde) et inclure :\n"
-                    "1. Une introduction personnalisée reprenant les informations du client (civilité, prénom, nom, adresse, etc.).\n"
-                    "2. Une comparaison des prix des biens récemment vendus dans le même secteur, avec des tableaux récapitulatifs (prix au m², rendement locatif en pourcentage, etc.).\n"
-                    "3. Des prévisions claires sur l'évolution du marché à 5 et 10 ans.\n"
-                    "4. Une description précise de la localisation du bien sur un plan (par exemple, coordonnées géographiques ou description détaillée de l'emplacement).\n"
-                    "Utilise intelligemment les données fournies et ne te contente pas de les répéter. Sois synthétique et oriente ton analyse vers des recommandations pratiques."
-                )
-            },
-            {"role": "user", "content": prompt}
-        ],
-        max_tokens=min_tokens,
-        temperature=0.8,
-    )
-    logging.info("Section générée par OpenAI.")
-    content = response.choices[0].message.content.strip()
-    if not content.endswith(('.', '!', '?')):
-        content += "."
-    return markdown_to_elements(content)
+def generate_estimation_section(form_data, min_tokens=800):
+    """
+    Génère une section d'estimation basée sur les données DVF et OpenAI.
+    """
+    try:
+        # Filtrer et calculer les données DVF
+        df, erreur = load_dvf_data_avance(form_data)
+        if erreur or df is None or df.empty:
+            logging.warning("Aucune donnée DVF trouvée après filtrage.")
+            return f"Données indisponibles pour cette estimation. Erreur : {erreur or 'Aucune donnée trouvée.'}"
+
+        # Filtrer les biens similaires selon le type de bien (appartement, maison)
+        df["prix_m2"] = df["valeur_fonciere"] / df["surface_reelle_bati"]
+        df_similaires = df[df["type_local"] == form_data.get("type_bien", "Appartement")]
+
+        # Calculer la fourchette de prix estimée
+        surface_bien = float(form_data.get("app_surface") or form_data.get("maison_surface") or form_data.get("terrain_surface", 0))
+
+        # Calcul du prix moyen au m² pour les biens similaires
+        prix_m2_moyen = df_similaires["prix_m2"].mean()
+
+        # Estimation du prix total
+        prix_estime = prix_m2_moyen * surface_bien
+
+        # Calcul de la fourchette de prix (±10%)
+        fourchette_inf = prix_estime * 0.9
+        fourchette_sup = prix_estime * 1.1
+
+        # Texte d'estimation à inclure dans le prompt pour OpenAI
+        estimation_text = (
+            f"En se basant sur les ventes récentes dans le secteur, le prix moyen au m² pour des biens similaires "
+            f"est de {prix_m2_moyen:.0f} € par m².\n"
+            f"Étant donné que la surface de votre bien est de {surface_bien:.0f} m², "
+            f"nous estimons le prix total de votre bien à une fourchette de {fourchette_inf:.0f} € à {fourchette_sup:.0f} €.\n"
+            f"Cette estimation est basée sur les dernières données DVF et les caractéristiques similaires des biens."
+        )
+
+        # Ajout du texte d'estimation dans le prompt d'OpenAI
+        prompt = (
+            f"Estimation du bien immobilier :\n"
+            f"{estimation_text}\n\n"
+            "Complétez cette analyse en prenant en compte les facteurs suivants :\n"
+            "1. Le type de bien (appartement, maison, etc.).\n"
+            "2. Les tendances du marché local pour les 5 prochaines années.\n"
+            "3. Toute recommandation pertinente concernant la vente ou la valorisation du bien."
+        )
+
+        # Log pour indiquer qu'on commence la génération avec OpenAI
+        logging.info("Génération de la section d'estimation avec OpenAI...")
+
+        # Appel à OpenAI pour générer l'analyse et l'estimation
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "Tu es un expert en immobilier en France. Rédige un rapport détaillé d'estimation."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=min_tokens,
+            temperature=0.8,
+        )
+
+        # Log de la réponse générée par OpenAI
+        logging.info("Section générée par OpenAI.")
+
+        # Traitement de la réponse pour s'assurer que la phrase se termine correctement
+        content = response.choices[0].message.content.strip()
+        if not content.endswith(('.', '!', '?')):
+            content += "."
+
+        # Retourner le contenu formaté pour le rapport
+        return markdown_to_elements(content)
+
+    except Exception as e:
+        logging.error(f"Erreur dans la génération de l'estimation : {str(e)}")
+        return "Erreur dans la génération de l'estimation."
+
 
 
 def resize_image(image_path, output_path, target_size=(469, 716)):
