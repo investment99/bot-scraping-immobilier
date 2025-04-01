@@ -319,21 +319,6 @@ def generate_dvf_chart(form_data):
 
 from reportlab.lib.enums import TA_CENTER
 
-def add_simple_table_of_contents(elements):
-    styles = getSampleStyleSheet()
-    toc_style = styles['Heading2']
-    elements.append(Paragraph("🗂️ Table des matières", toc_style))
-    toc = """
-    1. Introduction & Détails du bien  
-    2. Environnement & Quartier  
-    3. Données DVF (comparatif + graphique)  
-    4. Estimation et Analyse IA  
-    5. Recommandations  
-    """
-    elements.append(Paragraph(toc.replace("\n", "<br/>"), styles['BodyText']))
-    elements.append(PageBreak())
-
-
 def create_highlighted_box(text):
     styles = getSampleStyleSheet()
     box_style = ParagraphStyle(
@@ -390,8 +375,7 @@ def generate_estimation():
         logging.info("Page de garde préparée.")
         elements.append(Image(resized[0], width=469, height=716))
         elements.append(PageBreak())
-        # Ajout du sommaire
-        add_simple_table_of_contents(elements)
+    
 
         # Sections manuelles
                 # Nouvelle structure logique et pro du rapport
@@ -485,8 +469,7 @@ def generate_estimation_background(job_id, form_data):
         if resized:
             elements.append(Image(resized[0], width=469, height=716))
         elements.append(PageBreak())
-        # Ajout du sommaire
-        add_simple_table_of_contents(elements)
+        
         progress_map[job_id] = 70
         time.sleep(1)
         
