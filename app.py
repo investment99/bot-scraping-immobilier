@@ -515,45 +515,45 @@ def generate_estimation_background(job_id, form_data):
 
 
         sections = [
-    ("Introduction & Détails du bien", 
-     f"Client : {form_data.get('civilite', '')} {form_data.get('prenom', '')} {form_data.get('nom', '')}, domicilié(e) à {form_data.get('adresse_personnelle', '')} ({form_data.get('code_postal', '')}).\n"
-     f"Email : {form_data.get('email', '')}, téléphone : {form_data.get('telephone', '')}.\n\n"
-     f"Type de bien : {form_data.get('type_bien', '')}.\n"
-     f"État général : {form_data.get('etat_general', '')}, travaux récents : {form_data.get('travaux_recent', '')}, détails : {form_data.get('travaux_details', '')}, problèmes : {form_data.get('problemes', '')}.\n"
-     f"Équipements : {form_data.get('equipement_cuisine', '')}, {form_data.get('electromenager', '')}, sécurité : {form_data.get('securite', '')}.\n"
-     f"DPE : {form_data.get('dpe', '')}, orientation : {form_data.get('orientation', '')}, vue : {form_data.get('vue', '')}.\n"
-     f"Superficie : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface') or 'Non précisée'} m²."),
+            ("Introduction & Détails du bien", 
+            f"Client : {form_data.get('civilite', '')} {form_data.get('prenom', '')} {form_data.get('nom', '')}, domicilié(e) à {form_data.get('adresse_personnelle', '')} ({form_data.get('code_postal', '')}).\n"
+            f"Email : {form_data.get('email', '')}, téléphone : {form_data.get('telephone', '')}.\n\n"
+            f"Type de bien : {form_data.get('type_bien', '')}.\n"
+            f"État général : {form_data.get('etat_general', '')}, travaux récents : {form_data.get('travaux_recent', '')}, détails : {form_data.get('travaux_details', '')}, problèmes : {form_data.get('problemes', '')}.\n"
+            f"Équipements : {form_data.get('equipement_cuisine', '')}, {form_data.get('electromenager', '')}, sécurité : {form_data.get('securite', '')}.\n"
+            f"DPE : {form_data.get('dpe', '')}, orientation : {form_data.get('orientation', '')}, vue : {form_data.get('vue', '')}.\n"
+            f"Superficie : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface') or 'Non précisée'} m²."),
     
-    ("Environnement & Quartier",
-     f"Adresse du bien : {form_data.get('adresse', '')}, quartier : {form_data.get('quartier', '')}.\n"
-     f"Atouts : {form_data.get('atouts_quartier', '')}.\n"
-     f"Commerces : {form_data.get('distance_commerces', '')}, écoles primaires : {form_data.get('distance_primaires', '')}, secondaires : {form_data.get('distance_secondaires', '')}.\n"
-     f"Projets de développement : {form_data.get('developpement', '')}. Circulation : {form_data.get('circulation', '')}.\n\n"
-     f"⚠️ Reste factuel. N'invente rien."),
+            ("Environnement & Quartier",
+            f"Adresse du bien : {form_data.get('adresse', '')}, quartier : {form_data.get('quartier', '')}.\n"
+            f"Atouts : {form_data.get('atouts_quartier', '')}.\n"
+            f"Commerces : {form_data.get('distance_commerces', '')}, écoles primaires : {form_data.get('distance_primaires', '')}, secondaires : {form_data.get('distance_secondaires', '')}.\n"
+            f"Projets de développement : {form_data.get('developpement', '')}. Circulation : {form_data.get('circulation', '')}.\n\n"
+            f"⚠️ Reste factuel. N'invente rien."),
     
-    ("Estimation & Analyse IA",
-     f"Estime la valeur réelle de ce bien en t'appuyant uniquement sur les données DVF, les infos du formulaire et le marché actuel.\n"
-     f"Temps sur le marché : {form_data.get('temps_marche', '')}, offres : {form_data.get('offres', '')}, raison de vente : {form_data.get('raison_vente', '')}.\n"
-     f"Prix similaires : {form_data.get('prix_similaires', '')}, prix souhaité : {form_data.get('prix', '')} (négociable : {form_data.get('negociation', '')})."),
+            ("Estimation & Analyse IA",
+            f"Estime la valeur réelle de ce bien en t'appuyant uniquement sur les données DVF, les infos du formulaire et le marché actuel.\n"
+            f"Temps sur le marché : {form_data.get('temps_marche', '')}, offres : {form_data.get('offres', '')}, raison de vente : {form_data.get('raison_vente', '')}.\n"
+            f"Prix similaires : {form_data.get('prix_similaires', '')}, prix souhaité : {form_data.get('prix', '')} (négociable : {form_data.get('negociation', '')})."),
     
-    ("Analyse prédictive",
-     f"Analyse comment la valeur de ce bien ({form_data.get('type_bien', '')}) pourrait évoluer dans les 5 à 10 prochaines années, "
-     f"dans le quartier de {form_data.get('quartier', '')}, selon les projets en cours, l’attractivité locale et les tendances du marché."),
+            ("Analyse prédictive",
+            f"Analyse comment la valeur de ce bien ({form_data.get('type_bien', '')}) pourrait évoluer dans les 5 à 10 prochaines années, "
+            f"dans le quartier de {form_data.get('quartier', '')}, selon les projets en cours, l’attractivité locale et les tendances du marché."),
     
-    ("Recommandations",
-     f"Donne des conseils concrets pour vendre ce bien dans les meilleures conditions.\n"
-     f"Occupation actuelle : {form_data.get('occupe', '')}, dettes : {form_data.get('dettes', '')}, charges fixes : {form_data.get('charges_fixes', '')}.\n"
-     f"Contraintes légales : {form_data.get('contraintes', '')}, documents disponibles : {form_data.get('documents', '')}, conditions spéciales : {form_data.get('conditions', '')}.")
+            ("Recommandations",
+            f"Donne des conseils concrets pour vendre ce bien dans les meilleures conditions.\n"
+            f"Occupation actuelle : {form_data.get('occupe', '')}, dettes : {form_data.get('dettes', '')}, charges fixes : {form_data.get('charges_fixes', '')}.\n"
+            f"Contraintes légales : {form_data.get('contraintes', '')}, documents disponibles : {form_data.get('documents', '')}, conditions spéciales : {form_data.get('conditions', '')}.")
 ]
 
-for title, prompt in sections:
-    add_section_title(elements, title)
-    section = generate_estimation_section(prompt)
-    elements.extend(section)
-    elements.append(PageBreak())
+        for title, prompt in sections:
+            add_section_title(elements, title)
+            section = generate_estimation_section(prompt)
+            elements.extend(section)
+            elements.append(PageBreak())
 
-progress_map[job_id] = 90
-time.sleep(1)
+        progress_map[job_id] = 90
+        time.sleep(1)
 
         # Intégration des données DVF : tableau comparatif
         from reportlab.lib.styles import getSampleStyleSheet
