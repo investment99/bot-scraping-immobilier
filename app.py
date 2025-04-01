@@ -451,9 +451,7 @@ def generate_estimation_background(job_id, form_data):
         progress_map[job_id] = 0
 
         name = form_data.get("nom", "Client")
-        signature = f"{form_data.get('civilite', '')} {form_data.get('nom', '')}"
-        ...
-
+        signature = f"{form_data.get('civilite', '')} {form_data.get('prenom', '')} {form_data.get('nom', '')}"
         filename = os.path.join(PDF_FOLDER, f"estimation_{name.replace(' ', '_')}_{job_id}.pdf")
 
         doc = SimpleDocTemplate(filename, pagesize=A4,
@@ -476,31 +474,28 @@ def generate_estimation_background(job_id, form_data):
             elements.append(PageBreak())
         progress_map[job_id] = 20
 
-        # ✅ 2. Résumé du questionnaire
+        # ✅ 2. Résumé du questionnaire COMPLET
         add_section_title(elements, "Résumé du Questionnaire")
-        resume_text = f"""
-- Nom : {form_data.get('civilite', '')} {form_data.get('prenom', '')} {form_data.get('nom', '')}
-- Adresse personnelle : {form_data.get('adresse_personnelle', '')}, {form_data.get('code_postal', '')}
-- Email : {form_data.get('email', '')} | Téléphone : {form_data.get('telephone', '')}
-- Adresse du bien : {form_data.get('adresse', '')}
-- Type de bien : {form_data.get('type_bien', '')} | Surface : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface', 'Non précisée')} m²
-- Quartier : {form_data.get('quartier', '')} | Prix souhaité : {form_data.get('prix', '')}
-"""
-        elements.append(Paragraph(resume_text.strip(), styles['BodyText']))
+        résumé = ""
+        for key, value in form_data.items():
+            if isinstance(value, str) and value.strip():
+                label = key.replace("_", " ").capitalize()
+                résumé += f"- {label} : {value.strip()}\n"
+        elements.append(Paragraph(résumé.strip().replace("\n", "<br/>"), styles['BodyText']))
         elements.append(PageBreak())
         progress_map[job_id] = 30
 
         # ✅ 3. Introduction personnalisée
         add_section_title(elements, "Introduction")
         intro_prompt = (
-            f"Rédige une brève introduction professionnelle pour {form_data.get('civilite')} {form_data.get('prenom')} {form_data.get('nom')}, "
-            f"concernant l'estimation de son bien situé à {form_data.get('adresse')} ({form_data.get('code_postal')}). "
-            f"Ce rapport se base exclusivement sur les réponses fournies et sur les données DVF récentes."
+            f"Rédige une introduction professionnelle et synthétique pour {signature}, concernant l'estimation de son bien situé à "
+            f"{form_data.get('adresse')} ({form_data.get('code_postal')}). Ce rapport se base uniquement sur les données fournies "
+            f(dans le questionnaire et les données DVF)."
         )
         elements.extend(generate_estimation_section(intro_prompt, min_tokens=300))
         progress_map[job_id] = 40
 
-        # ✅ 4. Analyse DVF (tableau + graphique)
+        # ✅ 4. Analyse des Données DVF
         add_section_title(elements, "Analyse des Données DVF")
         dvf_table_md = get_dvf_comparables(form_data)
         dvf_elements = markdown_to_elements(dvf_table_md)
@@ -514,7 +509,7 @@ def generate_estimation_background(job_id, form_data):
         elements.append(PageBreak())
         progress_map[job_id] = 60
 
-        # ✅ 5. Estimation & Analyse – basée uniquement sur DVF + formulaire
+        # ✅ 5. Estimation & Analyse – avec vraie signature
         add_section_title(elements, "Estimation & Analyse")
         estimation_prompt = (
             f"Analyse les données suivantes pour estimer le prix du bien :\n"
@@ -522,19 +517,19 @@ def generate_estimation_background(job_id, form_data):
             f"- Quartier : {form_data.get('quartier', '')}, Code postal : {form_data.get('code_postal', '')}\n"
             f"- État : {form_data.get('etat_general', '')}, Travaux : {form_data.get('travaux_recent', '')} ({form_data.get('travaux_details', '')})\n\n"
             f"Appuie-toi **exclusivement** sur les ventes comparables DVF listées précédemment : surface, prix au m², type.\n"
-            f"Fournis une **fourchette de prix estimée en euros** cohérente, sans blabla inutile, puis une phrase sur l'évolution du marché dans ce secteur.\n"
-            f"Conclue par une signature : '{signature}, conseiller expert en immobilier.'"
+            f"Fournis une **fourchette de prix estimée en euros** cohérente et réaliste.\n"
+            f"Conclue par une phrase simple, puis signe : '{signature}, conseiller expert en immobilier.'"
         )
         elements.extend(generate_estimation_section(estimation_prompt, min_tokens=500))
         elements.append(PageBreak())
         progress_map[job_id] = 80
 
-        # ✅ 6. Conclusion & Recommandations – claire et synthétique
+        # ✅ 6. Conclusion & Recommandations (sans tableau)
         add_section_title(elements, "Conclusion & Recommandations")
         conclusion_prompt = (
-            f"Fais une **conclusion simple et personnalisée** pour {signature}, concernant la vente de son bien situé à {form_data.get('adresse', '')} ({form_data.get('code_postal', '')}).\n"
-            f"Rappelle le prix estimé en fourchette et donne 2 à 3 conseils concrets (mise en valeur, timing, points à améliorer).\n"
-            f"Finis par une signature : '{signature}, conseiller expert en immobilier.'"
+            f"Rédige une conclusion synthétique à destination de {signature}, concernant l’estimation de son bien situé à {form_data.get('adresse')}.\n"
+            f"Rappelle clairement la fourchette de prix estimée, puis donne 2 à 3 **conseils concrets** : mise en valeur, moment idéal pour vendre, travaux à envisager.\n"
+            f"Pas de tableau, pas de blabla inutile. Termine par une phrase professionnelle avec signature : '{signature}, conseiller expert en immobilier.'"
         )
         elements.extend(generate_estimation_section(conclusion_prompt, min_tokens=300))
 
