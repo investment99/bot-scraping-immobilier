@@ -522,28 +522,31 @@ def generate_estimation_background(job_id, form_data):
         elements.append(PageBreak())
         progress_map[job_id] = 60
 
-        # ✅ 5. Estimation & Analyse
-        dvf_data = get_dvf_comparables(form_data)
-        add_section_title(elements, "Estimation & Analyse")
-        prenom_nom = f"{form_data.get('civilite', '')} {form_data.get('prenom', '')} {form_data.get('nom', '')}".strip()
-        estimation_prompt = (
-            f"Voici les données DVF extraites :\n{dvf_data}\n\n"
-            f"Analyse les données suivantes pour estimer le prix total du bien de {prenom_nom} :\n"
-            f"- Type : {form_data.get('type_bien', '')}, Surface : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface', '')} m²\n"
-            f"- Quartier : {form_data.get('quartier', '')}, Code postal : {form_data.get('code_postal', '')}\n"
-            f"- État : {form_data.get('etat_general', '')}, Travaux : {form_data.get('travaux_recent', '')} ({form_data.get('travaux_details', '')})\n"
-            f"- Historique : temps sur le marché ({form_data.get('temps_marche', '')}), offres : {form_data.get('offres', '')}, "
-            f"raison de vente : {form_data.get('raison_vente', '')}\n"
-            f"- Prix similaires : {form_data.get('prix_similaires', '')}, prix visé : {form_data.get('prix', '')} (négociable : {form_data.get('negociation', '')})\n\n"
-            f"Appuie-toi **exclusivement** sur les ventes DVF précédentes (surface, prix/m², type).\n"
-            f"➡️ Fournis en début de réponse un tableau markdown présentant les critères suivants : "
-            f"Type de bien, Surface (m²), Prix/m² (€), Prix total estimé (€).\n"
-            f"Ensuite, développe une analyse détaillée qui se conclut par l'estimation globale du prix total du bien en euros, "
-            f"en justifiant ta méthode de calcul et en indiquant, le cas échéant, une fourchette de valeurs.\n"
-            f"Ne commence pas par 'Madame, Monsieur' et ne termine pas par un nom ni signature."
+                # ✅ 5. Estimation & Analyse
+                # Section Estimation & Analyse (remplace uniquement ce bloc dans generate_estimation_background)
+                dvf_data = get_dvf_comparables(form_data)
+                add_section_title(elements, "Estimation & Analyse")
+                prenom_nom = f"{form_data.get('civilite', '')} {form_data.get('prenom', '')} {form_data.get('nom', '')}".strip()
+                estimation_prompt = (
+                    f"Voici les données DVF extraites :\n{dvf_data}\n\n"
+                    f"Analyse les données suivantes pour estimer le prix total du bien de {prenom_nom} :\n"
+                    f"- Type : {form_data.get('type_bien', '')}, Surface : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface', '')} m²\n"
+                    f"- Quartier : {form_data.get('quartier', '')}, Code postal : {form_data.get('code_postal', '')}\n"
+                    f"- État : {form_data.get('etat_general', '')}, Travaux : {form_data.get('travaux_recent', '')} ({form_data.get('travaux_details', '')})\n"
+                    f"- Historique : temps sur le marché ({form_data.get('temps_marche', '')}), offres : {form_data.get('offres', '')}, "
+                    f"raison de vente : {form_data.get('raison_vente', '')}\n"
+                    f"- Prix similaires : {form_data.get('prix_similaires', '')}, prix visé : {form_data.get('prix', '')} (négociable : {form_data.get('negociation', '')})\n\n"
+                    f"Appuie-toi **exclusivement** sur les ventes DVF précédentes (surface, prix/m², type) pour calculer le prix total estimé du bien.\n"
+                    f"➡️ Fournis en début de réponse un tableau markdown présentant les critères suivants : "
+                    f"Type de bien, Surface (m²), Prix/m² (€), Prix total estimé (€).\n"
+                    f"Ensuite, développe une analyse détaillée en indiquant l'estimation globale du prix total du bien en euros, "
+                    f"en justifiant ta méthode de calcul et en donnant, le cas échéant, une fourchette de valeurs.\n"
+                    f"Ne commence pas par 'Madame, Monsieur' et ne termine pas par un nom ni signature."
         )
-        elements.extend(generate_estimation_section(estimation_prompt, min_tokens=600))
+        elements.extend(generate_estimation_section(estimation_prompt, min_tokens=500))
         elements.append(PageBreak())
+
+
 
 
         progress_map[job_id] = 80
