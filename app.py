@@ -81,30 +81,35 @@ def markdown_to_elements(md_text):
     styles = getSampleStyleSheet()
     PAGE_WIDTH = A4[0] - 4 * cm
 
-    for elem in soup.contents:
-        if elem.name == "table":
-            table_data = []
-            for row in elem.find_all("tr"):
-                row_data = [Paragraph(cell.get_text(strip=True), styles['BodyText']) for cell in row.find_all(["td", "th"])]
-                table_data.append(row_data)
-            col_count = len(table_data[0]) if table_data and table_data[0] else 1
-            col_width = PAGE_WIDTH / col_count
-            table_style = TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 9),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-            ])
-            table = Table(table_data, colWidths=[col_width] * col_count, style=table_style)
-            elements.append(table)
-        elif elem.name:
+    # Recherche de tous les tableaux, même imbriqués
+    for table in soup.find_all("table"):
+        table_data = []
+        for row in table.find_all("tr"):
+            row_data = [Paragraph(cell.get_text(strip=True), styles['BodyText'])
+                        for cell in row.find_all(["td", "th"])]
+            table_data.append(row_data)
+        col_count = len(table_data[0]) if table_data and table_data[0] else 1
+        col_width = PAGE_WIDTH / col_count
+        table_style = TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+        ])
+        table_obj = Table(table_data, colWidths=[col_width] * col_count, style=table_style)
+        elements.append(table_obj)
+
+    # Traitement des autres éléments de premier niveau (non-tableaux)
+    for elem in soup.find_all(recursive=False):
+        if elem.name != "table":
             paragraph = Paragraph(elem.get_text(strip=True), styles['BodyText'])
             elements.append(paragraph)
             elements.append(Spacer(1, 12))
     return elements
+
 
 def add_section_title(elements, title):
     styles = getSampleStyleSheet()
@@ -120,82 +125,33 @@ def add_section_title(elements, title):
     elements.append(Paragraph(title, title_style))
     elements.append(Spacer(1, 12))
 
-def generate_estimation_section(form_data, min_tokens=800):
-    """
-    Génère une section d'estimation basée sur les données DVF et OpenAI.
-    """
-    try:
-        # Filtrer et calculer les données DVF
-        df, erreur = load_dvf_data_avance(form_data)
-        if erreur or df is None or df.empty:
-            logging.warning("Aucune donnée DVF trouvée après filtrage.")
-            return f"Données indisponibles pour cette estimation. Erreur : {erreur or 'Aucune donnée trouvée.'}"
-
-        # Filtrer les biens similaires selon le type de bien (appartement, maison)
-        df["prix_m2"] = df["valeur_fonciere"] / df["surface_reelle_bati"]
-        df_similaires = df[df["type_local"] == form_data.get("type_bien", "Appartement")]
-
-        # Calculer la fourchette de prix estimée
-        surface_bien = float(form_data.get("app_surface") or form_data.get("maison_surface") or form_data.get("terrain_surface", 0))
-
-        # Calcul du prix moyen au m² pour les biens similaires
-        prix_m2_moyen = df_similaires["prix_m2"].mean()
-
-        # Estimation du prix total
-        prix_estime = prix_m2_moyen * surface_bien
-
-        # Calcul de la fourchette de prix (±10%)
-        fourchette_inf = prix_estime * 0.9
-        fourchette_sup = prix_estime * 1.1
-
-        # Texte d'estimation à inclure dans le prompt pour OpenAI
-        estimation_text = (
-            f"En se basant sur les ventes récentes dans le secteur, le prix moyen au m² pour des biens similaires "
-            f"est de {prix_m2_moyen:.0f} € par m².\n"
-            f"Étant donné que la surface de votre bien est de {surface_bien:.0f} m², "
-            f"nous estimons le prix total de votre bien à une fourchette de {fourchette_inf:.0f} € à {fourchette_sup:.0f} €.\n"
-            f"Cette estimation est basée sur les dernières données DVF et les caractéristiques similaires des biens."
-        )
-
-        # Ajout du texte d'estimation dans le prompt d'OpenAI
-        prompt = (
-            f"Estimation du bien immobilier :\n"
-            f"{estimation_text}\n\n"
-            "Complétez cette analyse en prenant en compte les facteurs suivants :\n"
-            "1. Le type de bien (appartement, maison, etc.).\n"
-            "2. Les tendances du marché local pour les 5 prochaines années.\n"
-            "3. Toute recommandation pertinente concernant la vente ou la valorisation du bien."
-        )
-
-        # Log pour indiquer qu'on commence la génération avec OpenAI
-        logging.info("Génération de la section d'estimation avec OpenAI...")
-
-        # Appel à OpenAI pour générer l'analyse et l'estimation
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "Tu es un expert en immobilier en France. Rédige un rapport détaillé d'estimation."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=min_tokens,
-            temperature=0.8,
-        )
-
-        # Log de la réponse générée par OpenAI
-        logging.info("Section générée par OpenAI.")
-
-        # Traitement de la réponse pour s'assurer que la phrase se termine correctement
-        content = response.choices[0].message.content.strip()
-        if not content.endswith(('.', '!', '?')):
-            content += "."
-
-        # Retourner le contenu formaté pour le rapport
-        return markdown_to_elements(content)
-
-    except Exception as e:
-        logging.error(f"Erreur dans la génération de l'estimation : {str(e)}")
-        return "Erreur dans la génération de l'estimation."
-
+def generate_estimation_section(prompt, min_tokens=800):
+    logging.info("Génération de la section d'estimation avec OpenAI...")
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Tu es un expert en immobilier en France. Ta mission est de rédiger un rapport d'analyse détaillé, synthétique et professionnel "
+                    "pour un bien immobilier. Le rapport doit être limité à 5 pages d'analyse (hors pages de garde) et inclure :\n"
+                    "1. Une introduction personnalisée reprenant les informations du client (civilité, prénom, nom, adresse, etc.).\n"
+                    "2. Une comparaison des prix des biens récemment vendus dans le même secteur, avec des tableaux récapitulatifs (prix au m², rendement locatif en pourcentage, etc.).\n"
+                    "3. Des prévisions claires sur l'évolution du marché à 5 et 10 ans.\n"
+                    "4. Une description précise de la localisation du bien sur un plan (par exemple, coordonnées géographiques ou description détaillée de l'emplacement).\n"
+                    "Utilise intelligemment les données fournies et ne te contente pas de les répéter. Sois synthétique et oriente ton analyse vers des recommandations pratiques."
+                )
+            },
+            {"role": "user", "content": prompt}
+        ],
+        max_tokens=min_tokens,
+        temperature=0.8,
+    )
+    logging.info("Section générée par OpenAI.")
+    content = response.choices[0].message.content.strip()
+    if not content.endswith(('.', '!', '?')):
+        content += "."
+    return markdown_to_elements(content)
 
 
 def resize_image(image_path, output_path, target_size=(469, 716)):
@@ -578,14 +534,14 @@ def generate_estimation_background(job_id, form_data):
             f"raison de vente : {form_data.get('raison_vente', '')}\n"
             f"- Prix similaires : {form_data.get('prix_similaires', '')}, prix visé : {form_data.get('prix', '')} (négociable : {form_data.get('negociation', '')})\n\n"
             f"Appuie-toi **exclusivement** sur les ventes DVF précédentes (surface, prix/m², type).\n"
-            f"➡️ Fournis **obligatoirement** une fourchette de prix estimée en euros (ex : entre 250 000 et 280 000 €) "
-            f"et calcule le prix total estimé en multipliant le prix au m² par la surface totale de l'appartement.\n"
-            f"Puis rédige une analyse synthétique (1 à 2 paragraphes maximum).\n"
-            f"Ne commence jamais par 'Madame, Monsieur', ne mets ni nom ni 'Cordialement' à la fin."
+            f"➡️ Fournis en début de réponse un tableau markdown présentant les critères suivants : "
+            f"Type de bien, Surface (m²), Prix/m² (€), Prix total estimé (€).\n"
+            f"Ensuite, développe une analyse détaillée en indiquant une fourchette de prix estimée en euros.\n"
+            f"Ne commence pas par 'Madame, Monsieur' et ne termine pas par un nom ni signature."
        )
+elements.extend(generate_estimation_section(estimation_prompt, min_tokens=500))
+elements.append(PageBreak())
 
-        elements.extend(generate_estimation_section(estimation_prompt, min_tokens=500))
-        elements.append(PageBreak())
         progress_map[job_id] = 80
 
         # ✅ 6. Conclusion & Recommandations
