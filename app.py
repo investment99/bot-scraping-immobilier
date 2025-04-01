@@ -490,49 +490,49 @@ def generate_estimation_background(job_id, form_data):
         # ✅ 3. Introduction personnalisée
         add_section_title(elements, "Introduction")
         intro_prompt = (
-            f"Rédige une brève introduction pour {form_data.get('civilite')} {form_data.get('prenom')} {form_data.get('nom')}, "
-            f"concernant l'estimation du bien situé à {form_data.get('adresse')} ({form_data.get('code_postal')}). "
-            f"Basée sur les données DVF officielles et les réponses fournies, l’objectif est d'obtenir une évaluation précise et synthétique."
+            f"Rédige une brève introduction professionnelle pour {form_data.get('civilite')} {form_data.get('prenom')} {form_data.get('nom')}, "
+            f"concernant l'estimation de son bien situé à {form_data.get('adresse')} ({form_data.get('code_postal')}). "
+            f"Ce rapport se base exclusivement sur les réponses fournies et sur les données DVF récentes."
         )
         elements.extend(generate_estimation_section(intro_prompt, min_tokens=300))
         progress_map[job_id] = 40
 
         # ✅ 4. Analyse DVF (tableau + graphique)
         add_section_title(elements, "Analyse des Données DVF")
-        dvf_table = get_dvf_comparables(form_data)
-        dvf_elements = markdown_to_elements(dvf_table)
+        dvf_table_md = get_dvf_comparables(form_data)
+        dvf_elements = markdown_to_elements(dvf_table_md)
         elements.append(KeepTogether(dvf_elements))
 
-
-        dvf_chart = generate_dvf_chart(form_data)
-        if dvf_chart:
-            elements.append(center_image(dvf_chart, width=400, height=300))
+        dvf_chart_path = generate_dvf_chart(form_data)
+        if dvf_chart_path:
+            elements.append(Spacer(1, 12))
+            elements.append(center_image(dvf_chart_path, width=400, height=300))
             elements.append(Paragraph("Évolution du prix moyen au m²", styles['Heading3']))
         elements.append(PageBreak())
         progress_map[job_id] = 60
 
-        # ✅ 5. Estimation & Analyse IA condensées
+        # ✅ 5. Estimation & Analyse – basée uniquement sur DVF + formulaire
         add_section_title(elements, "Estimation & Analyse")
         estimation_prompt = (
-           f"L'utilisateur souhaite une estimation rapide et fiable pour son bien situé à {form_data.get('adresse', '')} ({form_data.get('code_postal', '')}), quartier : {form_data.get('quartier', '')}.\n"
-           f"- Type : {form_data.get('type_bien', '')}, surface : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface')} m²\n"
-           f"- État : {form_data.get('etat_general', '')}, travaux : {form_data.get('travaux_recent', '')} ({form_data.get('travaux_details', '')})\n"
-           f"- Prix souhaité : {form_data.get('prix', '')}, prix similaires déclarés : {form_data.get('prix_similaires', '')}\n"
-           f"Analyse les ventes DVF précédemment affichées (adresse, prix/m², surface) pour proposer une fourchette de prix réaliste pour ce bien.\n"
-           f"Puis rédige une projection synthétique sur l'évolution du marché dans cette zone à 5-10 ans (sans blabla inutile)."
-)
-
+            f"Voici les données du bien à estimer :\n"
+            f"- Type : {form_data.get('type_bien', '')}, Surface : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface', '')} m²\n"
+            f"- État : {form_data.get('etat_general', '')}, Travaux : {form_data.get('travaux_recent', '')} ({form_data.get('travaux_details', '')})\n"
+            f"- Quartier : {form_data.get('quartier', '')}, Code postal : {form_data.get('code_postal', '')}\n\n"
+            f"Tu dois estimer **une fourchette de prix cohérente** uniquement à partir de ces données et du tableau DVF fourni (surface, prix, type, quartier). "
+            f"Ne jamais inventer, ne jamais utiliser d'autres sources. Donne aussi une projection sur l’évolution du marché dans cette zone, en restant synthétique et clair."
+        )
         elements.extend(generate_estimation_section(estimation_prompt, min_tokens=500))
         elements.append(PageBreak())
         progress_map[job_id] = 80
 
-        # ✅ 6. Conclusion & Recommandations condensées
+        # ✅ 6. Conclusion & Recommandations – liée aux contraintes
         add_section_title(elements, "Conclusion & Recommandations")
-        rec_prompt = (
-            f"Recommande une stratégie de vente efficace pour ce bien. Résume brièvement les atouts, les limites éventuelles, et les conditions déclarées : "
-            f"occupation ({form_data.get('occupe', '')}), dettes ({form_data.get('dettes', '')}), contraintes ({form_data.get('contraintes', '')})."
+        conclusion_prompt = (
+            f"Rédige une conclusion synthétique pour la vente de ce bien. Résume les atouts et risques éventuels.\n"
+            f"Prends en compte les éléments déclarés : occupation ({form_data.get('occupe', '')}), dettes ({form_data.get('dettes', '')}), "
+            f"contraintes spécifiques ({form_data.get('contraintes', '')}), documents disponibles ({form_data.get('documents', '')})."
         )
-        elements.extend(generate_estimation_section(rec_prompt, min_tokens=300))
+        elements.extend(generate_estimation_section(conclusion_prompt, min_tokens=300))
 
         # ✅ 7. Page de fin
         if len(resized) > 1:
@@ -549,6 +549,7 @@ def generate_estimation_background(job_id, form_data):
         logging.error(f"Erreur dans generate_estimation_background: {str(e)}")
         progress_map[job_id] = -1
         results_map[job_id] = None
+
 
 
 @app.route("/start_estimation", methods=["POST"])
