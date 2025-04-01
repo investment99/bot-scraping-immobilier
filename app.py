@@ -523,14 +523,19 @@ def generate_estimation_background(job_id, form_data):
         add_section_title(elements, "Estimation & Analyse")
         prenom_nom = f"{form_data.get('civilite', '')} {form_data.get('prenom', '')} {form_data.get('nom', '')}".strip()
         estimation_prompt = (
-            f"Analyse les données suivantes pour estimer le prix du bien de {prenom_nom} :\n"
-            f"- Type : {form_data.get('type_bien', '')}, Surface : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface', '')} m²\n"
-            f"- Quartier : {form_data.get('quartier', '')}, Code postal : {form_data.get('code_postal', '')}\n"
-            f"- État : {form_data.get('etat_general', '')}, Travaux : {form_data.get('travaux_recent', '')} ({form_data.get('travaux_details', '')})\n\n"
-            f"Appuie-toi exclusivement sur les ventes comparables DVF listées précédemment (surface, prix au m², type).\n"
-            f"Fournis une fourchette de prix estimée en euros, suivie d’une analyse claire du bien.\n"
-            f"**Ne commence jamais par 'Madame, Monsieur'** et ne termine pas par un nom ou une formule de politesse."
-        )
+           f"Analyse les données suivantes pour estimer le prix du bien de {prenom_nom} :\n"
+           f"- Type : {form_data.get('type_bien', '')}, Surface : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface', '')} m²\n"
+           f"- Quartier : {form_data.get('quartier', '')}, Code postal : {form_data.get('code_postal', '')}\n"
+           f"- État : {form_data.get('etat_general', '')}, Travaux : {form_data.get('travaux_recent', '')} ({form_data.get('travaux_details', '')})\n"
+           f"- Historique : temps sur le marché ({form_data.get('temps_marche', '')}), offres : {form_data.get('offres', '')}, "
+           f"raison de vente : {form_data.get('raison_vente', '')}\n"
+           f"- Prix similaires : {form_data.get('prix_similaires', '')}, prix visé : {form_data.get('prix', '')} (négociable : {form_data.get('negociation', '')})\n\n"
+           f"Appuie-toi **exclusivement** sur les ventes DVF précédentes (surface, prix/m², type).\n"
+           f"➡️ Fournis **obligatoirement** une fourchette de prix estimée en euros (ex : entre 250 000 et 280 000 €).\n"
+           f"Puis rédige une analyse synthétique (1 à 2 paragraphes maximum).\n"
+           f"Ne commence jamais par 'Madame, Monsieur', ne mets ni nom ni 'Cordialement' à la fin."
+)
+
         elements.extend(generate_estimation_section(estimation_prompt, min_tokens=500))
         elements.append(PageBreak())
         progress_map[job_id] = 80
@@ -538,13 +543,13 @@ def generate_estimation_background(job_id, form_data):
         # ✅ 6. Conclusion & Recommandations – claire et synthétique sans fourchette de prix
         add_section_title(elements, "Conclusion & Recommandations")
         conclusion_prompt = (
-            f"Propose une conclusion synthétique avec **uniquement des recommandations concrètes** pour {prenom_nom} :\n"
-            f"• Points à améliorer pour optimiser la vente\n"
-            f"• Timing idéal ou stratégie\n"
-            f"• Conseils pratiques sur la mise en valeur du bien\n"
-            f"⚠️ N’inclus pas la fourchette de prix estimée.\n"
-            f"Termine par une phrase bien rédigée (sans 'Cordialement')."
-        )
+            f"Fournis une conclusion personnalisée pour {prenom_nom}, contenant uniquement :\n"
+            f"• Des recommandations pratiques pour la vente du bien (mise en valeur, timing, stratégie)\n"
+            f"• Une prévision du marché local (courte, réaliste)\n"
+            f"⚠️ Ne mentionne pas de fourchette de prix, ne mets aucun tableau, ne répète pas l’analyse précédente.\n"
+            f"Termine par une phrase bien rédigée, sans 'Cordialement'."
+)
+
         elements.extend(generate_estimation_section(conclusion_prompt, min_tokens=300))
 
         # ✅ 7. Page de fin + cordialement
