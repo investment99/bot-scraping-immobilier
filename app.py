@@ -538,20 +538,20 @@ def generate_estimation_background(job_id, form_data):
         )
         elements.extend(generate_estimation_section(conclusion_prompt, min_tokens=300))
 
-       # ✅ 7. Page de fin + cordialement
-       if len(resized) > 1:
+        # ✅ 7. Page de fin + cordialement
+        if len(resized) > 1:
            elements.append(PageBreak())
            elements.append(Image(resized[1], width=469, height=716))
 
-       # Ajouter "Cordialement" en toute fin du rapport
-       elements.append(Spacer(1, 24))
-       elements.append(Paragraph("Cordialement,", getSampleStyleSheet()["BodyText"]))
+        # Ajouter "Cordialement" en toute fin du rapport
+        elements.append(Spacer(1, 24))
+        elements.append(Paragraph("Cordialement,", getSampleStyleSheet()["BodyText"]))
 
-       progress_map[job_id] = 95
-       doc.build(elements)
-       results_map[job_id] = filename
-       progress_map[job_id] = 100
-       logging.info(f"✅ Rapport finalisé pour job {job_id}")
+        progress_map[job_id] = 95
+        doc.build(elements)
+        results_map[job_id] = filename
+        progress_map[job_id] = 100
+        logging.info(f"✅ Rapport finalisé pour job {job_id}")
 
 
     except Exception as e:
