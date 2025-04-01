@@ -449,17 +449,18 @@ def generate_estimation_background(job_id, form_data):
     try:
         logging.info(f"Démarrage de la génération asynchrone pour job {job_id}...")
         progress_map[job_id] = 0
-        time.sleep(1)
-        progress_map[job_id] = 20
 
         name = form_data.get("nom", "Client")
         filename = os.path.join(PDF_FOLDER, f"estimation_{name.replace(' ', '_')}_{job_id}.pdf")
+
         doc = SimpleDocTemplate(filename, pagesize=A4,
                                 topMargin=2*cm, bottomMargin=2*cm,
                                 leftMargin=2*cm, rightMargin=2*cm)
         elements = []
+        styles = getSampleStyleSheet()
+        progress_map[job_id] = 10
 
-        # ✅ Page de garde
+        # ✅ 1. Page de garde
         covers = ["static/cover_image.png", "static/cover_image1.png"]
         resized = []
         for img_path in covers:
@@ -469,93 +470,83 @@ def generate_estimation_background(job_id, form_data):
                     resized.append(tmp.name)
         if resized:
             elements.append(Image(resized[0], width=469, height=716))
-        elements.append(PageBreak())
+            elements.append(PageBreak())
+        progress_map[job_id] = 20
 
-        # ✅ Résumé des données du questionnaire
-        add_section_title(elements, "Résumé des données du questionnaire")
+        # ✅ 2. Résumé du questionnaire
+        add_section_title(elements, "Résumé du Questionnaire")
         resume_text = f"""
-- Civilité : {form_data.get('civilite', '')}
-- Prénom : {form_data.get('prenom', '')}
-- Nom : {form_data.get('nom', '')}
-- Adresse : {form_data.get('adresse_personnelle', '')} ({form_data.get('code_postal', '')})
-- Type de bien : {form_data.get('type_bien', '')}
-- Surface : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface') or 'Non précisée'} m²
-- Quartier : {form_data.get('quartier', '')}
-- Prix souhaité : {form_data.get('prix', '')}
+- Nom : {form_data.get('civilite', '')} {form_data.get('prenom', '')} {form_data.get('nom', '')}
+- Adresse personnelle : {form_data.get('adresse_personnelle', '')}, {form_data.get('code_postal', '')}
+- Email : {form_data.get('email', '')} | Téléphone : {form_data.get('telephone', '')}
+- Adresse du bien : {form_data.get('adresse', '')}
+- Type de bien : {form_data.get('type_bien', '')} | Surface : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface', 'Non précisée')} m²
+- Quartier : {form_data.get('quartier', '')} | Prix souhaité : {form_data.get('prix', '')}
 """
-        elements.append(Paragraph(resume_text.strip(), getSampleStyleSheet()['BodyText']))
+        elements.append(Paragraph(resume_text.strip(), styles['BodyText']))
         elements.append(PageBreak())
+        progress_map[job_id] = 30
 
+        # ✅ 3. Introduction personnalisée
+        add_section_title(elements, "Introduction")
+        intro_prompt = (
+            f"Rédige une brève introduction pour {form_data.get('civilite')} {form_data.get('prenom')} {form_data.get('nom')}, "
+            f"concernant l'estimation du bien situé à {form_data.get('adresse')} ({form_data.get('code_postal')}). "
+            f"Basée sur les données DVF officielles et les réponses fournies, l’objectif est d'obtenir une évaluation précise et synthétique."
+        )
+        elements.extend(generate_estimation_section(intro_prompt, min_tokens=300))
         progress_map[job_id] = 40
 
-        # ✅ Analyse DVF - tableau
+        # ✅ 4. Analyse DVF (tableau + graphique)
         add_section_title(elements, "Analyse des Données DVF")
-        dvf_summary = get_dvf_comparables(form_data)
-        elements.append(Paragraph("Tableau comparatif des ventes récentes dans le secteur :", getSampleStyleSheet()['Heading3']))
-        elements.extend(markdown_to_elements(dvf_summary))
+        dvf_table = get_dvf_comparables(form_data)
+        elements.extend(markdown_to_elements(dvf_table))
+
+        dvf_chart = generate_dvf_chart(form_data)
+        if dvf_chart:
+            elements.append(center_image(dvf_chart, width=400, height=300))
+            elements.append(Paragraph("Évolution du prix moyen au m²", styles['Heading3']))
         elements.append(PageBreak())
-
-        # ✅ Analyse DVF - graphique
-        dvf_chart_path = generate_dvf_chart(form_data)
-        if dvf_chart_path and os.path.exists(dvf_chart_path):
-            elements.append(center_image(dvf_chart_path, width=400, height=300))
-            elements.append(Paragraph("Graphique : Évolution du prix moyen au m²", getSampleStyleSheet()['Heading3']))
-            elements.append(PageBreak())
-
         progress_map[job_id] = 60
 
-        # ✅ Sections IA dans l'ordre correct
-        sections = [
-            ("Introduction & Détails du bien", 
-             f"Client : {form_data.get('civilite', '')} {form_data.get('prenom', '')} {form_data.get('nom', '')}, domicilié(e) à {form_data.get('adresse_personnelle', '')} ({form_data.get('code_postal', '')}).\n"
-             f"Email : {form_data.get('email', '')}, téléphone : {form_data.get('telephone', '')}.\n"
-             f"Type de bien : {form_data.get('type_bien', '')}, superficie : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface') or 'Non précisée'} m².\n"
-             f"État général : {form_data.get('etat_general', '')}, travaux : {form_data.get('travaux_recent', '')} ({form_data.get('travaux_details', '')}), problèmes : {form_data.get('problemes', '')}.\n"
-             f"Équipements : {form_data.get('equipement_cuisine', '')}, électroménagers : {form_data.get('electromenager', '')}, sécurité : {form_data.get('securite', '')}.\n"
-             f"DPE : {form_data.get('dpe', '')}, orientation : {form_data.get('orientation', '')}, vue : {form_data.get('vue', '')}."),
+        # ✅ 5. Estimation & Analyse IA condensées
+        add_section_title(elements, "Estimation & Analyse")
+        estimation_prompt = (
+            f"Détails du bien :\n"
+            f"- Type : {form_data.get('type_bien', '')}, Surface : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface')} m²\n"
+            f"- État : {form_data.get('etat_general', '')}, Travaux : {form_data.get('travaux_recent', '')} ({form_data.get('travaux_details', '')})\n"
+            f"- Équipements : {form_data.get('equipement_cuisine', '')}, {form_data.get('electromenager', '')}, sécurité : {form_data.get('securite', '')}\n"
+            f"- DPE : {form_data.get('dpe', '')}, orientation : {form_data.get('orientation', '')}, vue : {form_data.get('vue', '')}\n\n"
+            f"Estime une fourchette de prix réaliste à partir des données DVF et de ces éléments, puis donne une projection simple de l’évolution du marché local sur 5-10 ans."
+        )
+        elements.extend(generate_estimation_section(estimation_prompt, min_tokens=500))
+        elements.append(PageBreak())
+        progress_map[job_id] = 80
 
-            ("Environnement & Quartier",
-             f"Adresse du bien : {form_data.get('adresse', '')}, quartier : {form_data.get('quartier', '')}.\n"
-             f"Atouts : {form_data.get('atouts_quartier', '')}.\n"
-             f"Commodités : commerces ({form_data.get('distance_commerces', '')}), écoles primaires ({form_data.get('distance_primaires', '')}), secondaires ({form_data.get('distance_secondaires', '')}).\n"
-             f"Projets à venir : {form_data.get('developpement', '')}, circulation : {form_data.get('circulation', '')}."),
+        # ✅ 6. Conclusion & Recommandations condensées
+        add_section_title(elements, "Conclusion & Recommandations")
+        rec_prompt = (
+            f"Recommande une stratégie de vente efficace pour ce bien. Résume brièvement les atouts, les limites éventuelles, et les conditions déclarées : "
+            f"occupation ({form_data.get('occupe', '')}), dettes ({form_data.get('dettes', '')}), contraintes ({form_data.get('contraintes', '')})."
+        )
+        elements.extend(generate_estimation_section(rec_prompt, min_tokens=300))
 
-            ("Estimation & Analyse IA",
-             f"Estime la valeur réelle de ce bien (fourchette en €) en t'appuyant **uniquement** sur les données DVF et les réponses du questionnaire.\n"
-             f"Temps sur le marché : {form_data.get('temps_marche', '')}, offres : {form_data.get('offres', '')}, raison de vente : {form_data.get('raison_vente', '')}.\n"
-             f"Prix similaires : {form_data.get('prix_similaires', '')}, prix visé : {form_data.get('prix', '')} (négociable : {form_data.get('negociation', '')})."),
-
-            ("Analyse prédictive",
-             f"Analyse l'évolution potentielle du prix sur 5 à 10 ans dans la zone de {form_data.get('quartier', '')}, selon les projets à venir et les tendances immobilières récentes."),
-
-            ("Recommandations",
-             f"Occupation : {form_data.get('occupe', '')}, dettes : {form_data.get('dettes', '')}, charges : {form_data.get('charges_fixes', '')}.\n"
-             f"Contraintes : {form_data.get('contraintes', '')}, documents disponibles : {form_data.get('documents', '')}, conditions spéciales : {form_data.get('conditions', '')}.\n"
-             f"Donne des recommandations concrètes pour une vente optimisée.")
-        ]
-
-        for title, prompt in sections:
-            add_section_title(elements, title)
-            section = generate_estimation_section(prompt)
-            elements.extend(section)
-            elements.append(PageBreak())
-
-        # ✅ Page de fin
+        # ✅ 7. Page de fin
         if len(resized) > 1:
+            elements.append(PageBreak())
             elements.append(Image(resized[1], width=469, height=716))
 
-        progress_map[job_id] = 90
-        time.sleep(1)
-
+        progress_map[job_id] = 95
         doc.build(elements)
         results_map[job_id] = filename
         progress_map[job_id] = 100
-        logging.info(f"Rapport asynchrone généré avec succès pour job {job_id}.")
+        logging.info(f"✅ Rapport finalisé pour job {job_id}")
 
     except Exception as e:
         logging.error(f"Erreur dans generate_estimation_background: {str(e)}")
         progress_map[job_id] = -1
         results_map[job_id] = None
+
 
 @app.route("/start_estimation", methods=["POST"])
 def start_estimation():
