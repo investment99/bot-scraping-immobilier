@@ -542,7 +542,7 @@ def generate_estimation_background(job_id, form_data):
             f"en justifiant ta méthode de calcul et en indiquant, le cas échéant, une fourchette de valeurs.\n"
             f"Ne commence pas par 'Madame, Monsieur' et ne termine pas par un nom ni signature."
         )
-        elements.extend(generate_estimation_section(estimation_prompt, min_tokens=500))
+        elements.extend(generate_estimation_section(estimation_prompt, min_tokens=600))
         elements.append(PageBreak())
 
 
