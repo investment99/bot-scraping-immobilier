@@ -512,9 +512,11 @@ def generate_estimation_background(job_id, form_data):
         progress_map[job_id] = 60
 
         # ✅ 5. Estimation & Analyse
+        # ✅ 5. Estimation & Analyse
         add_section_title(elements, "Estimation & Analyse")
         elements.extend(generate_section_estimation(form_data))
         elements.append(PageBreak())
+
         progress_map[job_id] = 80
 
         # ✅ 6. Conclusion & Recommandations
