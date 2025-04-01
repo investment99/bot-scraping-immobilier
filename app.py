@@ -483,7 +483,7 @@ def generate_estimation_background(job_id, form_data):
             elements.append(PageBreak())
         progress_map[job_id] = 20
 
-        # ✅ 2. Résumé du questionnaire COMPLET
+        # ✅ 2. Résumé du questionnaire
         add_section_title(elements, "Résumé du Questionnaire")
         résumé = ""
         for key, value in form_data.items():
@@ -494,13 +494,11 @@ def generate_estimation_background(job_id, form_data):
         elements.append(PageBreak())
         progress_map[job_id] = 30
 
-        # ✅ 3. Introduction personnalisée
+        # ✅ 3. Introduction
         add_section_title(elements, "Introduction")
         intro_prompt = (
-            f"Rédige une introduction professionnelle et synthétique pour {signature}, concernant l'estimation de son bien situé à "
-            f"{form_data.get('adresse')} ({form_data.get('code_postal')}). Ce rapport se base uniquement sur les données fournies "
-            "Dans le questionnaire et les données DVF."
-
+            f"Rédige une introduction synthétique et professionnelle pour {signature}, concernant l'estimation de son bien situé à "
+            f"{form_data.get('adresse')} ({form_data.get('code_postal')}). Ce rapport repose uniquement sur les réponses du formulaire et les données DVF."
         )
         elements.extend(generate_estimation_section(intro_prompt, min_tokens=300))
         progress_map[job_id] = 40
@@ -519,63 +517,52 @@ def generate_estimation_background(job_id, form_data):
         elements.append(PageBreak())
         progress_map[job_id] = 60
 
-        # ✅ 5. Estimation & Analyse – basée uniquement sur DVF + formulaire
+        # ✅ 5. Estimation & Analyse
         add_section_title(elements, "Estimation & Analyse")
         prenom_nom = f"{form_data.get('civilite', '')} {form_data.get('prenom', '')} {form_data.get('nom', '')}".strip()
         estimation_prompt = (
-            f"Tu es un expert immobilier. En te basant uniquement sur :\n"
-            f"- les données DVF précédemment listées (prix/m², surface, type de bien),\n"
-            f"- les caractéristiques du bien ({form_data.get('type_bien', '')}, "
-            f"{form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface', '')} m², "
-            f"état : {form_data.get('etat_general', '')}, quartier : {form_data.get('quartier', '')}),\n"
-            f"- l'historique (marché : {form_data.get('temps_marche', '')}, offres : {form_data.get('offres', '')}, "
-            f"raison de vente : {form_data.get('raison_vente', '')}),\n"
-            f"- et le prix visé ({form_data.get('prix', '')} €),\n\n"
-            f"Fournis une estimation réaliste sous forme de fourchette de prix en euros (ex: entre 270 000 € et 290 000 €).\n"
-            f"⚠️ Tu dois impérativement donner des chiffres crédibles basés sur les ventes DVF comparables.\n"
-            f"Puis rédige une analyse synthétique (maximum 2 paragraphes), sans débuter par 'Madame, Monsieur' ni terminer par une signature."
+            f"Analyse les données suivantes pour estimer le prix du bien de {prenom_nom} :\n"
+            f"- Type : {form_data.get('type_bien', '')}, Surface : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface', '')} m²\n"
+            f"- Quartier : {form_data.get('quartier', '')}, Code postal : {form_data.get('code_postal', '')}\n"
+            f"- État : {form_data.get('etat_general', '')}, Travaux : {form_data.get('travaux_recent', '')} ({form_data.get('travaux_details', '')})\n"
+            f"- Historique : temps sur le marché ({form_data.get('temps_marche', '')}), offres : {form_data.get('offres', '')}, "
+            f"raison de vente : {form_data.get('raison_vente', '')}\n"
+            f"- Prix similaires : {form_data.get('prix_similaires', '')}, prix visé : {form_data.get('prix', '')} (négociable : {form_data.get('negociation', '')})\n\n"
+            f"Appuie-toi **exclusivement** sur les ventes DVF précédentes (surface, prix/m², type).\n"
+            f"➡️ Fournis une **fourchette de prix estimée** en euros. Ne commence pas par 'Madame, Monsieur'. Ne termine pas par un nom ni signature."
         )
-
-
-
-        elements.extend(generate_estimation_section(estimation_prompt, min_tokens=600))
+        elements.extend(generate_estimation_section(estimation_prompt, min_tokens=500))
         elements.append(PageBreak())
         progress_map[job_id] = 80
 
-        # ✅ 6. Conclusion & Recommandations – claire et synthétique sans fourchette de prix
+        # ✅ 6. Conclusion & Recommandations
         add_section_title(elements, "Conclusion & Recommandations")
         conclusion_prompt = (
-            f"Rédige une conclusion synthétique pour {prenom_nom} avec uniquement :\n"
-            f"- Des **recommandations concrètes** sur la stratégie de vente (mise en valeur, timing, négociation).\n"
-            f"- Une **prévision du marché** local à 5 ou 10 ans (courte et réaliste).\n"
-            f"⚠️ **N'inclus pas** de fourchette de prix, **pas de tableau**, **pas de rappel de l’analyse précédente**.\n"
-            f"Ne commence pas par une formule comme 'Cher...' et ne termine pas par un nom.\n"
-            f"Termine par une **phrase complète bien rédigée**, sans 'Cordialement'."
+            f"Fournis une conclusion claire et professionnelle pour {prenom_nom}, avec uniquement :\n"
+            f"- Une prévision sur l’évolution du marché local\n"
+            f"- Des conseils pratiques pour mieux vendre\n"
+            f"- Aucune répétition de la fourchette de prix\n"
+            f"- Une phrase finale bien construite (pas de cordialement ici)"
         )
+        elements.extend(generate_estimation_section(conclusion_prompt, min_tokens=300))
 
-
-        elements.extend(generate_estimation_section(conclusion_prompt, min_tokens=400))
-
-        # ✅ 7. Page de fin + cordialement
+        # ✅ 7. Page de fin + Cordialement
         if len(resized) > 1:
-           elements.append(PageBreak())
-           elements.append(Image(resized[1], width=469, height=716))
-
-        # Ajouter "Cordialement" en toute fin du rapport
+            elements.append(PageBreak())
+            elements.append(Image(resized[1], width=469, height=716))
         elements.append(Spacer(1, 24))
         elements.append(Paragraph("Cordialement,", getSampleStyleSheet()["BodyText"]))
 
-        progress_map[job_id] = 95
+        progress_map[job_id] = 100
         doc.build(elements)
         results_map[job_id] = filename
-        progress_map[job_id] = 100
         logging.info(f"✅ Rapport finalisé pour job {job_id}")
-
 
     except Exception as e:
         logging.error(f"Erreur dans generate_estimation_background: {str(e)}")
         progress_map[job_id] = -1
         results_map[job_id] = None
+
 
 
 
