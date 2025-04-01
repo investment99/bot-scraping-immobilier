@@ -500,7 +500,9 @@ def generate_estimation_background(job_id, form_data):
         # ✅ 4. Analyse DVF (tableau + graphique)
         add_section_title(elements, "Analyse des Données DVF")
         dvf_table = get_dvf_comparables(form_data)
-        elements.extend(markdown_to_elements(dvf_table))
+        dvf_elements = markdown_to_elements(dvf_table)
+        elements.append(KeepTogether(dvf_elements))
+
 
         dvf_chart = generate_dvf_chart(form_data)
         if dvf_chart:
@@ -512,13 +514,14 @@ def generate_estimation_background(job_id, form_data):
         # ✅ 5. Estimation & Analyse IA condensées
         add_section_title(elements, "Estimation & Analyse")
         estimation_prompt = (
-            f"Détails du bien :\n"
-            f"- Type : {form_data.get('type_bien', '')}, Surface : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface')} m²\n"
-            f"- État : {form_data.get('etat_general', '')}, Travaux : {form_data.get('travaux_recent', '')} ({form_data.get('travaux_details', '')})\n"
-            f"- Équipements : {form_data.get('equipement_cuisine', '')}, {form_data.get('electromenager', '')}, sécurité : {form_data.get('securite', '')}\n"
-            f"- DPE : {form_data.get('dpe', '')}, orientation : {form_data.get('orientation', '')}, vue : {form_data.get('vue', '')}\n\n"
-            f"Estime une fourchette de prix réaliste à partir des données DVF et de ces éléments, puis donne une projection simple de l’évolution du marché local sur 5-10 ans."
-        )
+           f"L'utilisateur souhaite une estimation rapide et fiable pour son bien situé à {form_data.get('adresse', '')} ({form_data.get('code_postal', '')}), quartier : {form_data.get('quartier', '')}.\n"
+           f"- Type : {form_data.get('type_bien', '')}, surface : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface')} m²\n"
+           f"- État : {form_data.get('etat_general', '')}, travaux : {form_data.get('travaux_recent', '')} ({form_data.get('travaux_details', '')})\n"
+           f"- Prix souhaité : {form_data.get('prix', '')}, prix similaires déclarés : {form_data.get('prix_similaires', '')}\n"
+           f"Analyse les ventes DVF précédemment affichées (adresse, prix/m², surface) pour proposer une fourchette de prix réaliste pour ce bien.\n"
+           f"Puis rédige une projection synthétique sur l'évolution du marché dans cette zone à 5-10 ans (sans blabla inutile)."
+)
+
         elements.extend(generate_estimation_section(estimation_prompt, min_tokens=500))
         elements.append(PageBreak())
         progress_map[job_id] = 80
