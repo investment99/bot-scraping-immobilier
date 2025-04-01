@@ -529,8 +529,12 @@ def generate_estimation_background(job_id, form_data):
             f"raison de vente : {form_data.get('raison_vente', '')}\n"
             f"- Prix similaires : {form_data.get('prix_similaires', '')}, prix visé : {form_data.get('prix', '')} (négociable : {form_data.get('negociation', '')})\n\n"
             f"Appuie-toi **exclusivement** sur les ventes DVF précédentes (surface, prix/m², type).\n"
-            f"➡️ Fournis une **fourchette de prix estimée** en euros. Ne commence pas par 'Madame, Monsieur'. Ne termine pas par un nom ni signature."
-        )
+            f"➡️ Fournis **obligatoirement** une fourchette de prix estimée en euros (ex : entre 250 000 et 280 000 €) "
+            f"et calcule le prix total estimé en multipliant le prix au m² par la surface totale de l'appartement.\n"
+            f"Puis rédige une analyse synthétique (1 à 2 paragraphes maximum).\n"
+            f"Ne commence jamais par 'Madame, Monsieur', ne mets ni nom ni 'Cordialement' à la fin."
+       )
+
         elements.extend(generate_estimation_section(estimation_prompt, min_tokens=500))
         elements.append(PageBreak())
         progress_map[job_id] = 80
