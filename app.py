@@ -58,7 +58,7 @@ def normalize_columns(df):
     if "code_postal" in df.columns:
         df["code_postal"] = df["code_postal"].apply(
             lambda x: str(int(float(x))).zfill(5) if pd.notna(x) and str(x).replace('.', '', 1).isdigit() else None
-)
+        )
     if "numero_voie" in df.columns:
         df["numero_voie"] = df["numero_voie"].astype(str).str.replace(r"\.0$", "", regex=True).str.strip()
 
@@ -71,8 +71,6 @@ def normalize_columns(df):
         df["adresse"] = df["nom_voie"]
 
     return df
-
-
 
 def markdown_to_elements(md_text):
     elements = []
@@ -109,7 +107,6 @@ def markdown_to_elements(md_text):
             elements.append(paragraph)
             elements.append(Spacer(1, 12))
     return elements
-
 
 def add_section_title(elements, title):
     styles = getSampleStyleSheet()
@@ -153,7 +150,6 @@ def generate_estimation_section(prompt, min_tokens=800):
         content += "."
     return markdown_to_elements(content)
 
-
 def resize_image(image_path, output_path, target_size=(469, 716)):
     from PIL import Image as PILImage
     with PILImage.open(image_path) as img:
@@ -180,7 +176,6 @@ def load_dvf_data_avance(form_data):
             logging.warning("⚠️ Surface invalide ou non renseignée, filtrage DVF large appliqué.")
             surface_bien = 0
 
-
         dept_code = code_postal[:2]
         file_path_gz = os.path.join(DVF_FOLDER, f"{dept_code}.csv.gz")
         file_path_csv = os.path.join(DVF_FOLDER, f"{dept_code}.csv")
@@ -191,12 +186,10 @@ def load_dvf_data_avance(form_data):
             logging.info(f"📂 Chargement du fichier GZ : {file_path_gz}")
             df = pd.read_csv(file_path_gz, sep=",", low_memory=False)
             logging.info("✅ Colonnes brutes : %s", df.columns.tolist())
-
         elif os.path.exists(file_path_csv):
             logging.info(f"📂 Chargement du fichier CSV : {file_path_csv}")
             df = pd.read_csv(file_path_csv, sep=",", low_memory=False)
             logging.info("✅ Colonnes brutes : %s", df.columns.tolist())
-
         else:
             logging.error(f"Aucun fichier trouvé pour le département {dept_code}.")
             return None, f"Aucun fichier trouvé pour le département {dept_code}."
@@ -210,35 +203,29 @@ def load_dvf_data_avance(form_data):
         if "code_postal" in df.columns:
             df["code_postal"] = df["code_postal"].astype(str).str.strip().str.zfill(5)
             logging.info("🔍 code_postal après normalisation : %s", df["code_postal"].dropna().unique()[:10])
-
         if "adresse" in df.columns:
             logging.info("🔍 Exemple d'adresse après normalisation : %s", df["adresse"].dropna().unique()[:5])
 
-        # 💡 Et le reste du filtrage...
+        # 💡 Filtrage
         df = df[df["code_postal"] == code_postal]
-        logging.info("📊 Lignes après filtrage type_local=%s : %d", type_bien, len(df))  # Sauvegarde avant le filtrage d'adresse
+        logging.info("📊 Lignes après filtrage type_local=%s : %d", type_bien, len(df))
         df_initial = df.copy()
-
         if adresse:
             mots = adresse.lower().split()
             df = df[df["adresse"].notna()]
             df = df[df["adresse"].apply(lambda x: any(mot in x.lower() for mot in mots))]
             logging.info(f"📊 Lignes après filtrage adresse='{adresse}' : {len(df)}")
-
         if df.empty:
-                logging.warning("⚠️ Aucune correspondance sur l’adresse, on garde tous les biens du code postal.")
-                df = df_initial
-
+            logging.warning("⚠️ Aucune correspondance sur l’adresse, on garde tous les biens du code postal.")
+            df = df_initial
 
         if "surface_reelle_bati" not in df.columns or "valeur_fonciere" not in df.columns:
             logging.error("❌ Colonnes 'surface_reelle_bati' ou 'valeur_fonciere' absentes !")
             return None, "Colonnes manquantes"
 
         df = df[(df["surface_reelle_bati"] > 10) & (df["valeur_fonciere"] > 1000)]
-
         if surface_bien > 0:
             df = df[df["surface_reelle_bati"].between(surface_bien * 0.7, surface_bien * 1.3)]
-
         df["prix_m2"] = df["valeur_fonciere"] / df["surface_reelle_bati"]
         df = df.sort_values(by="date_mutation", ascending=False)
 
@@ -250,17 +237,14 @@ def load_dvf_data_avance(form_data):
         logging.error(f"❌ Erreur dans load_dvf_data_avance: {str(e)}")
         return None, f"Erreur DVF : {str(e)}"
 
-
 def get_dvf_comparables(form_data):
     try:
         df, erreur = load_dvf_data_avance(form_data)
         if erreur or df is None or df.empty:
             logging.warning("Aucune donnée DVF trouvée après filtrage.")
             return f"Données indisponibles pour cette estimation. Erreur : {erreur or 'Aucune donnée trouvée.'}"
-
         df["prix_m2"] = df["valeur_fonciere"] / df["surface_reelle_bati"]
         df = df.sort_values(by="date_mutation", ascending=False).head(10)
-
         table_md = "| Adresse | Ville | Type de bien | Surface (m²) | Prix (€) | Prix/m² (€) |\n"
         table_md += "|---|---|---|---|---|---|\n"
         for _, row in df.iterrows():
@@ -271,7 +255,6 @@ def get_dvf_comparables(form_data):
             valeur = row.get("valeur_fonciere", 0)
             prix_m2 = row.get("prix_m2", 0)
             table_md += f"| {adresse} | {ville} | {type_local} | {surface:.0f} | {valeur:.0f} | {prix_m2:.0f} |\n"
-
         logging.info("Tableau comparatif DVF généré.")
         return f"Voici les 10 dernières transactions similaires pour ce secteur :\n\n{table_md}"
     except Exception as e:
@@ -285,27 +268,22 @@ def generate_dvf_chart(form_data):
         if not code_postal or not code_postal.isdigit() or len(code_postal) < 2:
             logging.warning("Code postal invalide.")
             return None
-
         dept_code = code_postal[:2]
         dvf_path = os.path.join(DVF_FOLDER, f"{dept_code}.csv.gz")
         if not os.path.exists(dvf_path):
             logging.error(f"Fichier DVF non trouvé pour le département {dept_code}.")
             return None
-
         logging.info(f"Chargement du fichier DVF pour le graphique: {dvf_path}")
-        df = pd.read_csv(dvf_path, compression="gzip", low_memory=False)  # 🧠 plus de sep buggué
+        df = pd.read_csv(dvf_path, compression="gzip", low_memory=False)
         df = normalize_columns(df)
-
         if "code_postal" not in df.columns:
             logging.error("❌ La colonne 'code_postal' est absente du fichier après normalisation.")
             return None
-
         df["code_postal"] = df["code_postal"].str.strip()
         code_postal = str(form_data.get("code_postal", "")).zfill(5)
         type_bien = form_data.get("type_bien", "").capitalize()
         df = df[df["code_postal"] == code_postal]
         df = df[df["type_local"] == type_bien]
-
         df = df[df["type_local"].isin(["Appartement", "Maison"])]
         df = df[(df["surface_reelle_bati"] > 10) & (df["valeur_fonciere"] > 1000)]
         df["prix_m2"] = df["valeur_fonciere"] / df["surface_reelle_bati"]
@@ -313,14 +291,12 @@ def generate_dvf_chart(form_data):
         df = df.dropna(subset=["date_mutation"])
         df["année"] = df["date_mutation"].dt.year
         prix_m2_par_annee = df.groupby("année")["prix_m2"].mean().round(0)
-
         plt.figure(figsize=(8, 5))
         prix_m2_par_annee.plot(kind="line", marker="o", title=f"Évolution du prix moyen au m² - {code_postal}")
         plt.ylabel("Prix moyen au m² (€)")
         plt.xlabel("Année")
         plt.grid(True)
         plt.tight_layout()
-
         tmp_img = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
         plt.savefig(tmp_img.name)
         plt.close()
@@ -363,6 +339,30 @@ def center_image(image_path, width=400, height=300):
     img.hAlign = 'CENTER'
     return img
 
+# Fonction dédiée pour la section Estimation & Analyse
+def generate_section_estimation(form_data):
+    dvf_data = get_dvf_comparables(form_data)
+    prenom_nom = f"{form_data.get('civilite', '')} {form_data.get('prenom', '')} {form_data.get('nom', '')}".strip()
+    prompt = (
+         f"=== DONNÉES DVF ===\n{dvf_data}\n\n"
+         f"=== SECTION: ESTIMATION & ANALYSE ===\n"
+         f"Analyse les données suivantes pour estimer le prix total du bien de {prenom_nom} :\n"
+         f"- Type : {form_data.get('type_bien', '')}, Surface : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface', '')} m²\n"
+         f"- Quartier : {form_data.get('quartier', '')}, Code postal : {form_data.get('code_postal', '')}\n"
+         f"- État : {form_data.get('etat_general', '')}, Travaux : {form_data.get('travaux_recent', '')} ({form_data.get('travaux_details', '')})\n"
+         f"- Historique : temps sur le marché ({form_data.get('temps_marche', '')}), offres : {form_data.get('offres', '')}, "
+         f"raison de vente : {form_data.get('raison_vente', '')}\n"
+         f"- Prix similaires : {form_data.get('prix_similaires', '')}, prix visé : {form_data.get('prix', '')} (négociable : {form_data.get('negociation', '')})\n\n"
+         f"Appuie-toi **exclusivement** sur les ventes DVF précédentes (surface, prix/m², type) pour calculer le prix total estimé du bien.\n"
+         f"➡️ Fournis en début de réponse un tableau markdown présentant les critères suivants : "
+         f"Type de bien, Surface (m²), Prix/m² (€), Prix total estimé (€).\n"
+         f"=== FIN DU TABLEAU ===\n\n"
+         f"Ensuite, développe une analyse détaillée en indiquant l'estimation globale du prix total du bien en euros, "
+         f"en justifiant ta méthode de calcul et en donnant, le cas échéant, une fourchette de valeurs.\n"
+         f"Ne commence pas par 'Madame, Monsieur' et ne termine pas par un nom ni signature."
+    )
+    return generate_estimation_section(prompt, min_tokens=500)
+
 @app.route("/generate_estimation", methods=["POST"])
 def generate_estimation():
     try:
@@ -390,14 +390,9 @@ def generate_estimation():
         elements.append(Image(resized[0], width=469, height=716))
         elements.append(PageBreak())
     
-
         # Sections manuelles
-                # Nouvelle structure logique et pro du rapport
-        # Sections manuelles
-        # Nouvelle structure logique et pro du rapport
         sections = [
             ("Résumé des données du questionnaire", resume_data),
-
             ("Introduction et Détails du bien", 
              f"Client : {form_data.get('civilite', '')} {form_data.get('prenom', '')} {form_data.get('nom', '')}, "
              f"domicilié(e) à {form_data.get('adresse_personnelle', '')} ({form_data.get('code_postal', '')}).\n"
@@ -407,30 +402,25 @@ def generate_estimation():
              f"problèmes : {form_data.get('problemes', '')}.\n"
              f"Équipements : {form_data.get('equipement_cuisine', '')}, électroménagers : {form_data.get('electromenager', '')}, sécurité : {form_data.get('securite', '')}.\n"
              f"DPE : {form_data.get('dpe', '')}, orientation : {form_data.get('orientation', '')}, vue : {form_data.get('vue', '')}."),
-
             ("Analyse des Données DVF", 
              "Voici les données comparatives extraites du fichier DVF officiel. Utilise **ces données comme base prioritaire pour l’estimation** et **ne les ignore jamais**. "
              "Tu trouveras un tableau récapitulatif des dernières ventes similaires, suivi d’un graphique des prix au m² sur les dernières années."),
-
             ("Environnement & Quartier", 
              f"Adresse : {form_data.get('adresse', '')}, quartier : {form_data.get('quartier', '')}.\n"
              f"Atouts : {form_data.get('atouts_quartier', '')}.\n"
              f"Commodités : commerces ({form_data.get('distance_commerces', '')}), écoles primaires ({form_data.get('distance_primaires', '')}), secondaires ({form_data.get('distance_secondaires', '')}).\n"
              f"Projets à venir : {form_data.get('developpement', '')}, circulation : {form_data.get('circulation', '')}."),
-
             ("Estimation & Analyse IA", 
              f"Estime la valeur réelle de ce bien (fourchette en €) en t'appuyant **exclusivement** sur les données DVF et les réponses ci-dessus.\n"
              f"Historique : temps sur le marché ({form_data.get('temps_marche', '')}), offres : {form_data.get('offres', '')}, "
              f"raison de vente : {form_data.get('raison_vente', '')}.\n"
              f"Prix similaires : {form_data.get('prix_similaires', '')}, prix visé : {form_data.get('prix', '')} (négociable : {form_data.get('negociation', '')})."),
-
             ("Analyse prédictive et Recommandations", 
              f"📈 **Prévision** : Évolution potentielle du prix sur 5 à 10 ans dans la zone de {form_data.get('quartier', '')}, selon projets locaux et marché.\n\n"
              f"✅ **Recommandations** :\n"
              f"Occupation actuelle : {form_data.get('occupe', '')}, dettes : {form_data.get('dettes', '')}, charges : {form_data.get('charges_fixes', '')}.\n"
              f"Contraintes : {form_data.get('contraintes', '')}, documents : {form_data.get('documents', '')}, conditions spéciales : {form_data.get('conditions', '')}.\n")
-]
-
+        ]
 
         for title, prompt in sections:
             add_section_title(elements, title)
@@ -438,8 +428,7 @@ def generate_estimation():
             elements.extend(section)
             elements.append(PageBreak())
         logging.info("Toutes les sections principales sont ajoutées.")
-
-
+    
         # Page de fin
         if len(resized) > 1:
             elements.append(Image(resized[1], width=469, height=716))
@@ -505,7 +494,8 @@ def generate_estimation_background(job_id, form_data):
             f"Rédige une introduction synthétique et professionnelle pour {signature}, concernant l'estimation de son bien situé à "
             f"{form_data.get('adresse')} ({form_data.get('code_postal')}). Ce rapport repose uniquement sur les réponses du formulaire et les données DVF."
         )
-        elements.extend(generate_estimation_section(intro_prompt, min_tokens=300))   
+        elements.extend(generate_estimation_section(intro_prompt, min_tokens=300))
+        elements.append(PageBreak())
         progress_map[job_id] = 40
 
         # ✅ 4. Analyse des Données DVF
@@ -513,7 +503,6 @@ def generate_estimation_background(job_id, form_data):
         dvf_table_md = get_dvf_comparables(form_data)
         dvf_elements = markdown_to_elements(dvf_table_md)
         elements.append(KeepTogether(dvf_elements))
-
         dvf_chart_path = generate_dvf_chart(form_data)
         if dvf_chart_path:
             elements.append(Spacer(1, 12))
@@ -523,48 +512,25 @@ def generate_estimation_background(job_id, form_data):
         progress_map[job_id] = 60
 
         # ✅ 5. Estimation & Analyse
-        # Section Estimation & Analyse (remplace uniquement ce bloc dans generate_estimation_background)
-        dvf_data = get_dvf_comparables(form_data)
         add_section_title(elements, "Estimation & Analyse")
-        prenom_nom = f"{form_data.get('civilite', '')} {form_data.get('prenom', '')} {form_data.get('nom', '')}".strip()
-        estimation_prompt = (
-             f"Voici les données DVF extraites :\n{dvf_data}\n\n"
-             f"Analyse les données suivantes pour estimer le prix total du bien de {prenom_nom} :\n"
-             f"- Type : {form_data.get('type_bien', '')}, Surface : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface', '')} m²\n"
-             f"- Quartier : {form_data.get('quartier', '')}, Code postal : {form_data.get('code_postal', '')}\n"
-             f"- État : {form_data.get('etat_general', '')}, Travaux : {form_data.get('travaux_recent', '')} ({form_data.get('travaux_details', '')})\n"
-             f"- Historique : temps sur le marché ({form_data.get('temps_marche', '')}), offres : {form_data.get('offres', '')}, "
-             f"raison de vente : {form_data.get('raison_vente', '')}\n"
-             f"- Prix similaires : {form_data.get('prix_similaires', '')}, prix visé : {form_data.get('prix', '')} (négociable : {form_data.get('negociation', '')})\n\n"
-             f"Appuie-toi **exclusivement** sur les ventes DVF précédentes (surface, prix/m², type) pour calculer le prix total estimé du bien.\n"
-             f"➡️ Fournis en début de réponse un tableau markdown présentant les critères suivants : "
-             f"Type de bien, Surface (m²), Prix/m² (€), Prix total estimé (€).\n"
-             f"Ensuite, développe une analyse détaillée en indiquant l'estimation globale du prix total du bien en euros, "
-             f"en justifiant ta méthode de calcul et en donnant, le cas échéant, une fourchette de valeurs.\n"
-             f"Ne commence pas par 'Madame, Monsieur' et ne termine pas par un nom ni signature."
-        )
-        elements.extend(generate_estimation_section(estimation_prompt, min_tokens=500))
+        elements.extend(generate_section_estimation(form_data))
         elements.append(PageBreak())
-
-
-
-
         progress_map[job_id] = 80
 
         # ✅ 6. Conclusion & Recommandations
         add_section_title(elements, "Conclusion & Recommandations")
         conclusion_prompt = (
-            f"Fournis une conclusion claire et professionnelle pour {prenom_nom}, avec uniquement :\n"
+            f"Fournis une conclusion claire et professionnelle pour {signature}, avec uniquement :\n"
             f"- Une prévision sur l’évolution du marché local\n"
             f"- Des conseils pratiques pour mieux vendre\n"
             f"- Aucune répétition de la fourchette de prix\n"
             f"- Une phrase finale bien construite (pas de cordialement ici)"
         )
         elements.extend(generate_estimation_section(conclusion_prompt, min_tokens=300))
+        elements.append(PageBreak())
 
         # ✅ 7. Page de fin + Cordialement
         if len(resized) > 1:
-            elements.append(PageBreak())
             elements.append(Image(resized[1], width=469, height=716))
         elements.append(Spacer(1, 24))
         elements.append(Paragraph("Cordialement,", getSampleStyleSheet()["BodyText"]))
@@ -578,9 +544,6 @@ def generate_estimation_background(job_id, form_data):
         logging.error(f"Erreur dans generate_estimation_background: {str(e)}")
         progress_map[job_id] = -1
         results_map[job_id] = None
-
-
-
 
 @app.route("/start_estimation", methods=["POST"])
 def start_estimation():
