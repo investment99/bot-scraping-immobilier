@@ -510,40 +510,49 @@ def generate_estimation_background(job_id, form_data):
         elements.append(PageBreak())
         progress_map[job_id] = 60
 
-        # ✅ 5. Estimation & Analyse – avec vraie signature
+        # ✅ 5. Estimation & Analyse – basée uniquement sur DVF + formulaire
         add_section_title(elements, "Estimation & Analyse")
+        prenom_nom = f"{form_data.get('civilite', '')} {form_data.get('prenom', '')} {form_data.get('nom', '')}".strip()
         estimation_prompt = (
-            f"Analyse les données suivantes pour estimer le prix du bien :\n"
+            f"Analyse les données suivantes pour estimer le prix du bien de {prenom_nom} :\n"
             f"- Type : {form_data.get('type_bien', '')}, Surface : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface', '')} m²\n"
             f"- Quartier : {form_data.get('quartier', '')}, Code postal : {form_data.get('code_postal', '')}\n"
             f"- État : {form_data.get('etat_general', '')}, Travaux : {form_data.get('travaux_recent', '')} ({form_data.get('travaux_details', '')})\n\n"
-            f"Appuie-toi **exclusivement** sur les ventes comparables DVF listées précédemment : surface, prix au m², type.\n"
-            f"Fournis une **fourchette de prix estimée en euros** cohérente et réaliste.\n"
-            f"Conclue par une phrase simple, puis signe : '{signature}, conseiller expert en immobilier.'"
+            f"Appuie-toi exclusivement sur les ventes comparables DVF listées précédemment (surface, prix au m², type).\n"
+            f"Fournis une fourchette de prix estimée en euros, suivie d’une analyse claire du bien.\n"
+            f"**Ne commence jamais par 'Madame, Monsieur'** et ne termine pas par un nom ou une formule de politesse."
         )
         elements.extend(generate_estimation_section(estimation_prompt, min_tokens=500))
         elements.append(PageBreak())
         progress_map[job_id] = 80
 
-        # ✅ 6. Conclusion & Recommandations (sans tableau)
+        # ✅ 6. Conclusion & Recommandations – claire et synthétique sans fourchette de prix
         add_section_title(elements, "Conclusion & Recommandations")
         conclusion_prompt = (
-            f"Rédige une conclusion synthétique à destination de {signature}, concernant l’estimation de son bien situé à {form_data.get('adresse')}.\n"
-            f"Rappelle clairement la fourchette de prix estimée, puis donne 2 à 3 **conseils concrets** : mise en valeur, moment idéal pour vendre, travaux à envisager.\n"
-            f"Pas de tableau, pas de blabla inutile. Termine par une phrase professionnelle avec signature : '{signature}, conseiller expert en immobilier.'"
+            f"Propose une conclusion synthétique avec **uniquement des recommandations concrètes** pour {prenom_nom} :\n"
+            f"• Points à améliorer pour optimiser la vente\n"
+            f"• Timing idéal ou stratégie\n"
+            f"• Conseils pratiques sur la mise en valeur du bien\n"
+            f"⚠️ N’inclus pas la fourchette de prix estimée.\n"
+            f"Termine par une phrase bien rédigée (sans 'Cordialement')."
         )
         elements.extend(generate_estimation_section(conclusion_prompt, min_tokens=300))
 
-        # ✅ 7. Page de fin
-        if len(resized) > 1:
-            elements.append(PageBreak())
-            elements.append(Image(resized[1], width=469, height=716))
+       # ✅ 7. Page de fin + cordialement
+       if len(resized) > 1:
+           elements.append(PageBreak())
+           elements.append(Image(resized[1], width=469, height=716))
 
-        progress_map[job_id] = 95
-        doc.build(elements)
-        results_map[job_id] = filename
-        progress_map[job_id] = 100
-        logging.info(f"✅ Rapport finalisé pour job {job_id}")
+       # Ajouter "Cordialement" en toute fin du rapport
+       elements.append(Spacer(1, 24))
+       elements.append(Paragraph("Cordialement,", getSampleStyleSheet()["BodyText"]))
+
+       progress_map[job_id] = 95
+       doc.build(elements)
+       results_map[job_id] = filename
+       progress_map[job_id] = 100
+       logging.info(f"✅ Rapport finalisé pour job {job_id}")
+
 
     except Exception as e:
         logging.error(f"Erreur dans generate_estimation_background: {str(e)}")
