@@ -451,6 +451,9 @@ def generate_estimation_background(job_id, form_data):
         progress_map[job_id] = 0
 
         name = form_data.get("nom", "Client")
+        signature = f"{form_data.get('civilite', '')} {form_data.get('nom', '')}"
+        ...
+
         filename = os.path.join(PDF_FOLDER, f"estimation_{name.replace(' ', '_')}_{job_id}.pdf")
 
         doc = SimpleDocTemplate(filename, pagesize=A4,
@@ -514,23 +517,24 @@ def generate_estimation_background(job_id, form_data):
         # ✅ 5. Estimation & Analyse – basée uniquement sur DVF + formulaire
         add_section_title(elements, "Estimation & Analyse")
         estimation_prompt = (
-            f"Voici les données du bien à estimer :\n"
+            f"Analyse les données suivantes pour estimer le prix du bien :\n"
             f"- Type : {form_data.get('type_bien', '')}, Surface : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface', '')} m²\n"
-            f"- État : {form_data.get('etat_general', '')}, Travaux : {form_data.get('travaux_recent', '')} ({form_data.get('travaux_details', '')})\n"
-            f"- Quartier : {form_data.get('quartier', '')}, Code postal : {form_data.get('code_postal', '')}\n\n"
-            f"Tu dois estimer **une fourchette de prix cohérente** uniquement à partir de ces données et du tableau DVF fourni (surface, prix, type, quartier). "
-            f"Ne jamais inventer, ne jamais utiliser d'autres sources. Donne aussi une projection sur l’évolution du marché dans cette zone, en restant synthétique et clair."
+            f"- Quartier : {form_data.get('quartier', '')}, Code postal : {form_data.get('code_postal', '')}\n"
+            f"- État : {form_data.get('etat_general', '')}, Travaux : {form_data.get('travaux_recent', '')} ({form_data.get('travaux_details', '')})\n\n"
+            f"Appuie-toi **exclusivement** sur les ventes comparables DVF listées précédemment : surface, prix au m², type.\n"
+            f"Fournis une **fourchette de prix estimée en euros** cohérente, sans blabla inutile, puis une phrase sur l'évolution du marché dans ce secteur.\n"
+            f"Conclue par une signature : '{signature}, conseiller expert en immobilier.'"
         )
         elements.extend(generate_estimation_section(estimation_prompt, min_tokens=500))
         elements.append(PageBreak())
         progress_map[job_id] = 80
 
-        # ✅ 6. Conclusion & Recommandations – liée aux contraintes
+        # ✅ 6. Conclusion & Recommandations – claire et synthétique
         add_section_title(elements, "Conclusion & Recommandations")
         conclusion_prompt = (
-            f"Rédige une conclusion synthétique pour la vente de ce bien. Résume les atouts et risques éventuels.\n"
-            f"Prends en compte les éléments déclarés : occupation ({form_data.get('occupe', '')}), dettes ({form_data.get('dettes', '')}), "
-            f"contraintes spécifiques ({form_data.get('contraintes', '')}), documents disponibles ({form_data.get('documents', '')})."
+            f"Fais une **conclusion simple et personnalisée** pour {signature}, concernant la vente de son bien situé à {form_data.get('adresse', '')} ({form_data.get('code_postal', '')}).\n"
+            f"Rappelle le prix estimé en fourchette et donne 2 à 3 conseils concrets (mise en valeur, timing, points à améliorer).\n"
+            f"Finis par une signature : '{signature}, conseiller expert en immobilier.'"
         )
         elements.extend(generate_estimation_section(conclusion_prompt, min_tokens=300))
 
