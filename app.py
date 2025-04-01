@@ -501,7 +501,7 @@ def generate_estimation_background(job_id, form_data):
             f"- Historique : temps sur le marché ({form_data.get('temps_marche', '')}), offres : {form_data.get('offres', '')}, "
             f"raison de vente : {form_data.get('raison_vente', '')}\n"
             f"- Prix similaires : {form_data.get('prix_similaires', '')}, prix visé : {form_data.get('prix', '')} (négociable : {form_data.get('negociation', '')}).",
-            min_tokens=500
+            min_tokens=600
         ))
         elements.append(PageBreak())
         progress_map[job_id] = 80
