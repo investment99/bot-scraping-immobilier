@@ -218,6 +218,9 @@ def load_dvf_data_avance(form_data):
         if "adresse" in df.columns:
             logging.info("🔍 Exemple d'adresse après normalisation : %s", df["adresse"].dropna().unique()[:5])
         df = df[df["code_postal"] == code_postal]
+        # --- Filtrage par type de bien (seulement Appartement, Maison ou Terrain) ---
+        if type_bien in ["Appartement", "Maison", "Terrain"]:
+            df = df[df["type_local"] == type_bien]
         logging.info("📊 Lignes après filtrage type_local=%s : %d", type_bien, len(df))
         df_initial = df.copy()
         if adresse:
@@ -289,8 +292,9 @@ def generate_dvf_chart(form_data):
         code_postal = str(form_data.get("code_postal", "")).zfill(5)
         type_bien = form_data.get("type_bien", "").capitalize()
         df = df[df["code_postal"] == code_postal]
-        df = df[df["type_local"] == type_bien]
-        df = df[df["type_local"].isin(["Appartement", "Maison"])]
+        # --- Filtrage par type de bien dans le graphique ---
+        if type_bien in ["Appartement", "Maison", "Terrain"]:
+            df = df[df["type_local"] == type_bien]
         df = df[(df["surface_reelle_bati"] > 10) & (df["valeur_fonciere"] > 1000)]
         df["prix_m2"] = df["valeur_fonciere"] / df["surface_reelle_bati"]
         df["date_mutation"] = pd.to_datetime(df["date_mutation"], errors="coerce")
@@ -375,7 +379,6 @@ def assembler_pdf(fichiers_pdf, pdf_final_path):
         merger.write(fout)
 
 # --- Endpoints Flask ---
-
 @app.route("/generate_estimation", methods=["POST"])
 def generate_estimation():
     try:
@@ -391,7 +394,7 @@ def generate_estimation():
                                 leftMargin=2*cm, rightMargin=2*cm)
         elements = []
 
-        # Page de garde (reste inchangée)
+        # Page de garde (inchangée)
         covers = ["static/cover_image.png", "static/cover_image1.png"]
         resized = []
         for img_path in covers:
@@ -416,7 +419,7 @@ def generate_estimation():
         # Section 2 : Introduction
         section_intro = generate_estimation_section(
             f"Rédige une introduction complète et professionnelle pour {form_data.get('civilite', '')} {form_data.get('prenom', '')} {form_data.get('nom', '')}, concernant l'estimation de son bien situé à {form_data.get('adresse')} ({form_data.get('code_postal')}). Ne termine pas par 'Cordialement, Expert immobilier'. Ce rapport repose uniquement sur les réponses du formulaire et les données DVF.",
-            min_tokens=400
+            min_tokens=300
         )
         elements.append(generer_pdf_section("Introduction", section_intro))
         progress_map[name] = 40
@@ -459,7 +462,7 @@ def generate_estimation():
         elements.append(generer_pdf_section("Estimation & Analyse", section_estimation))
         progress_map[name] = 80
 
-        # Section 5 : Recommandations
+        # Section 5 : Recommandations (seulement une recommandation en une phrase)
         section_conclusion = generate_estimation_section(
             f"Oubliez tout le contexte précédent. À partir de zéro, fournissez uniquement une recommandation pratique et concise pour optimiser la vente du bien de {form_data.get('civilite', '')} {form_data.get('prenom', '')} {form_data.get('nom', '')}. "
             "Donnez une seule phrase complète qui indique le meilleur positionnement du prix et la stratégie de mise en marché idéale. "
@@ -568,7 +571,7 @@ def generate_estimation_background(job_id, form_data):
         pdf_sections.append(generer_pdf_section("Estimation & Analyse", section_estimation))
         progress_map[job_id] = 80
 
-        # Section 5 : Recommandations
+        # Section 5 : Recommandations (seulement une recommandation en une phrase)
         section_conclusion = generate_estimation_section(
             f"Oubliez tout le contexte précédent. À partir de zéro, fournissez uniquement une recommandation pratique et concise pour optimiser la vente du bien de {signature}. "
             "Donnez une seule phrase complète qui indique le meilleur positionnement du prix et la stratégie de mise en marché idéale. "
@@ -628,4 +631,3 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     logging.info(f"✅ Démarrage de l'API sur le port {port}")
     app.run(host="0.0.0.0", port=port)
-    
