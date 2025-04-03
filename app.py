@@ -36,6 +36,14 @@ os.makedirs(PDF_FOLDER, exist_ok=True)
 # Dossier contenant les fichiers DVF (.csv.gz)
 DVF_FOLDER = "./dvf_data/"
 
+# --- Nouvelle fonction de formatage des prix ---
+def format_price(value):
+    try:
+        # Formate le nombre avec deux décimales, espace pour les milliers et virgule comme séparateur décimal.
+        return f"{value:,.2f}".replace(",", " ").replace(".", ",")
+    except Exception:
+        return str(value)
+
 def normalize_columns(df):
     """
     Nettoie et renomme toutes les colonnes DVF + fusionne adresse + force les types.
@@ -252,7 +260,7 @@ def get_dvf_comparables(form_data):
             surface = row.get("surface_reelle_bati", 0)
             valeur = row.get("valeur_fonciere", 0)
             prix_m2 = row.get("prix_m2", 0)
-            table_md += f"| {adresse} | {ville} | {type_local} | {surface:.0f} | {valeur:.0f} | {prix_m2:.0f} |\n"
+            table_md += f"| {adresse} | {ville} | {type_local} | {surface:.0f} | {format_price(valeur)} | {format_price(prix_m2)} |\n"
         logging.info("Tableau comparatif DVF généré.")
         return f"Voici les 10 dernières transactions similaires pour ce secteur :\n\n{table_md}"
     except Exception as e:
@@ -451,14 +459,14 @@ def generate_estimation():
         elements.append(generer_pdf_section("Estimation & Analyse", section_estimation))
         progress_map[name] = 80
 
-        # Section 5 : Conclusion & Recommandations
+        # Section 5 : Recommandations
         section_conclusion = generate_estimation_section(
-            f"Oubliez tout le contexte précédent. À partir de zéro, fournissez uniquement des recommandations pratiques pour optimiser la vente du bien de {form_data.get('civilite', '')} {form_data.get('prenom', '')} {form_data.get('nom', '')}. "
-            "Concentrez-vous sur des stratégies de mise en marché, le positionnement du prix et des conseils concrets pour attirer les acheteurs. "
-            "N'incluez aucune estimation de prix ni analyse détaillée du marché. Terminez toutes les phrases correctement.",
+            f"Oubliez tout le contexte précédent. À partir de zéro, fournissez uniquement une recommandation pratique et concise pour optimiser la vente du bien de {form_data.get('civilite', '')} {form_data.get('prenom', '')} {form_data.get('nom', '')}. "
+            "Donnez une seule phrase complète qui indique le meilleur positionnement du prix et la stratégie de mise en marché idéale. "
+            "N'incluez aucune estimation de prix ni analyse détaillée du marché. Terminez correctement la phrase.",
             min_tokens=300
         )
-        elements.append(generer_pdf_section("Conclusion & Recommandations", section_conclusion))
+        elements.append(generer_pdf_section("Recommandations", section_conclusion))
         progress_map[name] = 90
 
         # Page de fin
@@ -541,8 +549,7 @@ def generate_estimation_background(job_id, form_data):
             f"- Surface : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface', '')} m²\n"
             f"- Quartier : {form_data.get('quartier', '')}, Code postal : {form_data.get('code_postal', '')}\n"
             f"- État : {form_data.get('etat_general', '')}, Travaux : {form_data.get('travaux_recent', '')} ({form_data.get('travaux_details', '')})\n"
-            f"- Historique : temps sur le marché ({form_data.get('temps_marche', '')}), offres : {form_data.get('offres', '')}, "
-            f"raison de vente : {form_data.get('raison_vente', '')}\n"
+            f"- Historique : temps sur le marché ({form_data.get('temps_marche', '')}), offres : {form_data.get('offres', '')}, raison de vente : {form_data.get('raison_vente', '')}\n"
             f"- Prix similaires : {form_data.get('prix_similaires', '')}, Prix visé : {form_data.get('prix', '')} (négociable : {form_data.get('negociation', '')}).\n"
             "Donnez une estimation chiffrée sous forme de fourchette précise. Terminez toutes les phrases.",
             min_tokens=600
@@ -564,12 +571,11 @@ def generate_estimation_background(job_id, form_data):
         # Section 5 : Recommandations
         section_conclusion = generate_estimation_section(
             f"Oubliez tout le contexte précédent. À partir de zéro, fournissez uniquement une recommandation pratique et concise pour optimiser la vente du bien de {signature}. "
-             "Donnez une seule phrase complète qui indique le meilleur positionnement du prix et la stratégie de mise en marché idéale. "
+            "Donnez une seule phrase complète qui indique le meilleur positionnement du prix et la stratégie de mise en marché idéale. "
             "N'incluez aucune estimation de prix ni analyse détaillée du marché. Terminez correctement la phrase.",
-        min_tokens=300
+            min_tokens=300
         )
         pdf_sections.append(generer_pdf_section("Recommandations", section_conclusion))
-
         progress_map[job_id] = 90
 
         # Page de fin
