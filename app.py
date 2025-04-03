@@ -138,13 +138,13 @@ def generate_estimation_section(prompt, min_tokens=800):
             {
                 "role": "system",
                 "content": (
-                    "Tu es un expert en immobilier en France. Ta mission est de rédiger un rapport d'analyse détaillé, synthétique et professionnel "
-                    "pour un bien immobilier. Le rapport doit être limité à 5 pages d'analyse (hors pages de garde) et inclure :\n"
+                    "Tu es un expert en immobilier en France. Ta mission est de rédiger un rapport d'analyse détaillé, synthétique et professionnel pour un bien immobilier. Le rapport doit comporter plusieurs sections détaillées et inclure :\n"
                     "1. Une introduction personnalisée reprenant les informations du client (civilité, prénom, nom, adresse, etc.).\n"
                     "2. Une comparaison des prix des biens récemment vendus dans le même secteur, avec des tableaux récapitulatifs (prix au m², rendement locatif en pourcentage, etc.).\n"
                     "3. Des prévisions claires sur l'évolution du marché à 5 et 10 ans.\n"
                     "4. Une description précise de la localisation du bien sur un plan (par exemple, coordonnées géographiques ou description détaillée de l'emplacement).\n"
                     "Utilise intelligemment les données fournies et ne te contente pas de les répéter. Sois synthétique et oriente ton analyse vers des recommandations pratiques."
+
                 )
             },
             {"role": "user", "content": prompt}
