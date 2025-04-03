@@ -561,14 +561,15 @@ def generate_estimation_background(job_id, form_data):
         pdf_sections.append(generer_pdf_section("Estimation & Analyse", section_estimation))
         progress_map[job_id] = 80
 
-        # Section 5 : Conclusion & Recommandations
+        # Section 5 : Recommandations
         section_conclusion = generate_estimation_section(
-            f"Oubliez tout le contexte précédent. À partir de zéro, fournissez uniquement des recommandations pratiques pour optimiser la vente du bien de {signature}. "
-            "Concentrez-vous sur des stratégies de mise en marché, le positionnement du prix et des conseils concrets pour attirer les acheteurs. "
-            "N'incluez aucune estimation de prix ni analyse détaillée du marché. Terminez toutes les phrases correctement.",
-            min_tokens=300
+            f"Oubliez tout le contexte précédent. À partir de zéro, fournissez uniquement une recommandation pratique et concise pour optimiser la vente du bien de {signature}. "
+             "Donnez une seule phrase complète qui indique le meilleur positionnement du prix et la stratégie de mise en marché idéale. "
+            "N'incluez aucune estimation de prix ni analyse détaillée du marché. Terminez correctement la phrase.",
+        min_tokens=300
         )
-        pdf_sections.append(generer_pdf_section("Conclusion & Recommandations", section_conclusion))
+        pdf_sections.append(generer_pdf_section("Recommandations", section_conclusion))
+
         progress_map[job_id] = 90
 
         # Page de fin
