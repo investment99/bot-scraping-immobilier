@@ -97,7 +97,7 @@ def markdown_to_elements(md_text):
             elements.append(Spacer(1, 12))
     return elements
 
-# Amélioration du design du titre de section avec emoji
+# Titre de section avec emoji
 def add_section_title(elements, title):
     styles = getSampleStyleSheet()
     titre_avec_emoji = f"✅ {title}"
@@ -113,7 +113,7 @@ def add_section_title(elements, title):
     elements.append(Paragraph(titre_avec_emoji, title_style))
     elements.append(Spacer(1, 10))
 
-# Style personnalisé pour le résumé du questionnaire
+# Style pour le résumé du questionnaire
 def style_resume(text):
     resume_style = ParagraphStyle(
         'ResumeStyle',
@@ -156,7 +156,7 @@ def generate_estimation_section(prompt, min_tokens=800):
     content = response.choices[0].message.content.strip()
     if not content.endswith(('.', '!', '?')):
         content += "."
-    # Optionnel : pour éviter que certaines sections ne se terminent par "Cordialement, ...", on peut filtrer
+    # Si le contenu contient une formule indésirable, on la coupe.
     if "Cordialement," in content:
         content = content.split("Cordialement,")[0].strip()
     return markdown_to_elements(content)
@@ -487,9 +487,10 @@ def generate_estimation_background(job_id, form_data):
         pdf_sections.append(generer_pdf_section("Résumé du Questionnaire", section_resume))
         progress_map[job_id] = 30
 
-        # Section 2 : Introduction (modifié pour éviter les signatures indésirables)
+        # Section 2 : Introduction (modifiée pour éviter les formules indésirables)
         section_intro = generate_estimation_section(
-            f"Rédige une introduction synthétique et professionnelle pour {signature}, concernant l'estimation de son bien situé à {form_data.get('adresse')} ({form_data.get('code_postal')}). Ne termine pas par 'Cordialement, Expert immobilier'. Ce rapport repose uniquement sur les réponses du formulaire et les données DVF.",
+            f"Rédige une introduction complète et professionnelle pour {signature}, concernant l'estimation de son bien situé à {form_data.get('adresse')} ({form_data.get('code_postal')}). "
+            "Ne termine pas par 'Cordialement, Expert immobilier'. Ce rapport repose uniquement sur les réponses du formulaire et les données DVF.",
             min_tokens=300
         )
         pdf_sections.append(generer_pdf_section("Introduction", section_intro))
@@ -509,16 +510,17 @@ def generate_estimation_background(job_id, form_data):
         # Section 4 : Estimation & Analyse avec contrôle de complétude
         section_estimation = generate_estimation_section(
             f"Voici les données DVF extraites :\n{dvf_table_md}\n\n"
-            f"Analyse les données suivantes pour estimer le prix total du bien de {signature} :\n"
-            f"- Type : {form_data.get('type_bien', '')}, Surface : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface', '')} m²\n"
+            f"Analyse en détail ces données pour estimer la valeur réelle du bien de {signature} :\n"
+            f"- Type : {form_data.get('type_bien', '')}\n"
+            f"- Surface : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface', '')} m²\n"
             f"- Quartier : {form_data.get('quartier', '')}, Code postal : {form_data.get('code_postal', '')}\n"
             f"- État : {form_data.get('etat_general', '')}, Travaux : {form_data.get('travaux_recent', '')} ({form_data.get('travaux_details', '')})\n"
             f"- Historique : temps sur le marché ({form_data.get('temps_marche', '')}), offres : {form_data.get('offres', '')}, "
             f"raison de vente : {form_data.get('raison_vente', '')}\n"
-            f"- Prix similaires : {form_data.get('prix_similaires', '')}, prix visé : {form_data.get('prix', '')} (négociable : {form_data.get('negociation', '')}).",
+            f"- Prix similaires : {form_data.get('prix_similaires', '')}, Prix visé : {form_data.get('prix', '')} (négociable : {form_data.get('negociation', '')}).\n"
+            "Donne une estimation chiffrée sous forme de fourchette précise.",
             min_tokens=600
         )
-        # Vérification de la complétude de la section 4
         full_text = ""
         for flowable in section_estimation:
             try:
@@ -533,11 +535,11 @@ def generate_estimation_background(job_id, form_data):
         pdf_sections.append(generer_pdf_section("Estimation & Analyse", section_estimation))
         progress_map[job_id] = 80
 
-        # Section 5 : Conclusion & Recommandations (prompt modifié)
+        # Section 5 : Conclusion & Recommandations (avec contexte réinitialisé)
         section_conclusion = generate_estimation_section(
-            f"Fournis uniquement des recommandations pratiques et détaillées pour la vente du bien de {signature}. "
-            "Concentre-toi sur des stratégies de mise en marché, le positionnement du prix et des conseils pour attirer les acheteurs. "
-            "Ne donne pas d'estimation de prix ni d'analyse détaillée du marché.",
+            f"Ignore tout le contexte précédent. Fournis uniquement des recommandations pratiques et détaillées pour optimiser la vente du bien de {signature}. "
+            "Concentre-toi sur des stratégies de mise en marché, le positionnement du prix et des conseils concrets pour attirer les acheteurs. "
+            "Ne donne aucune estimation de prix ni analyse détaillée du marché.",
             min_tokens=300
         )
         pdf_sections.append(generer_pdf_section("Conclusion & Recommandations", section_conclusion))
