@@ -97,9 +97,10 @@ def markdown_to_elements(md_text):
             elements.append(Spacer(1, 12))
     return elements
 
-# Amélioration du design du titre de section
+# Amélioration du design du titre de section avec emoji
 def add_section_title(elements, title):
     styles = getSampleStyleSheet()
+    titre_avec_emoji = f"✅ {title}"
     title_style = ParagraphStyle(
         'SectionTitle',
         fontSize=18,
@@ -109,7 +110,7 @@ def add_section_title(elements, title):
         spaceAfter=14,
         spaceBefore=14,
     )
-    elements.append(Paragraph(title, title_style))
+    elements.append(Paragraph(titre_avec_emoji, title_style))
     elements.append(Spacer(1, 10))
 
 # Style personnalisé pour le résumé du questionnaire
@@ -122,7 +123,7 @@ def style_resume(text):
         leading=14,
         textColor=colors.black,
         backColor=colors.whitesmoke,
-        borderColor=colors.HexColor("#00C7C4"),
+        borderColor=colors.HexColor("#00A8A8"),
         borderWidth=0.5,
         borderPadding=6,
         spaceAfter=12
@@ -155,6 +156,9 @@ def generate_estimation_section(prompt, min_tokens=800):
     content = response.choices[0].message.content.strip()
     if not content.endswith(('.', '!', '?')):
         content += "."
+    # Optionnel : pour éviter que certaines sections ne se terminent par "Cordialement, ...", on peut filtrer
+    if "Cordialement," in content:
+        content = content.split("Cordialement,")[0].strip()
     return markdown_to_elements(content)
 
 def resize_image(image_path, output_path, target_size=(469, 716)):
@@ -311,7 +315,7 @@ def create_highlighted_box(text):
         'BoxStyle',
         parent=styles['BodyText'],
         backColor=colors.whitesmoke,
-        borderColor=colors.HexColor("#00C7C4"),
+        borderColor=colors.HexColor("#00A8A8"),
         borderWidth=1,
         borderPadding=6,
         spaceBefore=12,
@@ -348,7 +352,7 @@ def generer_pdf_section(titre, elements):
                             topMargin=2*cm, bottomMargin=2*cm,
                             leftMargin=2*cm, rightMargin=2*cm)
     story = []
-    if titre:  # N'ajoute le titre que s'il n'est pas vide.
+    if titre:
         add_section_title(story, titre)
     story.extend(elements)
     doc.build(story)
@@ -432,6 +436,9 @@ def generate_estimation():
         # Page de fin
         if len(resized) > 1:
             elements.append(Image(resized[1], width=469, height=716))
+        # Ajout du message final
+        elements.append(Spacer(1, 24))
+        elements.append(Paragraph("Cordialement, Expert immobilier.", getSampleStyleSheet()["BodyText"]))
         logging.info("Page de fin ajoutée.")
 
         doc.build(elements)
@@ -480,9 +487,9 @@ def generate_estimation_background(job_id, form_data):
         pdf_sections.append(generer_pdf_section("Résumé du Questionnaire", section_resume))
         progress_map[job_id] = 30
 
-        # Section 2 : Introduction
+        # Section 2 : Introduction (modifié pour éviter les signatures indésirables)
         section_intro = generate_estimation_section(
-            f"Rédige une introduction synthétique et professionnelle pour {signature}, concernant l'estimation de son bien situé à {form_data.get('adresse')} ({form_data.get('code_postal')}). Ce rapport repose uniquement sur les réponses du formulaire et les données DVF.",
+            f"Rédige une introduction synthétique et professionnelle pour {signature}, concernant l'estimation de son bien situé à {form_data.get('adresse')} ({form_data.get('code_postal')}). Ne termine pas par 'Cordialement, Expert immobilier'. Ce rapport repose uniquement sur les réponses du formulaire et les données DVF.",
             min_tokens=300
         )
         pdf_sections.append(generer_pdf_section("Introduction", section_intro))
@@ -499,7 +506,7 @@ def generate_estimation_background(job_id, form_data):
         pdf_sections.append(generer_pdf_section("Analyse des Données DVF", section_dvf))
         progress_map[job_id] = 60
 
-        # Section 4 : Estimation & Analyse
+        # Section 4 : Estimation & Analyse avec contrôle de complétude
         section_estimation = generate_estimation_section(
             f"Voici les données DVF extraites :\n{dvf_table_md}\n\n"
             f"Analyse les données suivantes pour estimer le prix total du bien de {signature} :\n"
@@ -511,23 +518,36 @@ def generate_estimation_background(job_id, form_data):
             f"- Prix similaires : {form_data.get('prix_similaires', '')}, prix visé : {form_data.get('prix', '')} (négociable : {form_data.get('negociation', '')}).",
             min_tokens=600
         )
+        # Vérification de la complétude de la section 4
+        full_text = ""
+        for flowable in section_estimation:
+            try:
+                full_text += flowable.getPlainText() + " "
+            except AttributeError:
+                pass
+        if len(full_text) < 500:
+            continuation = generate_estimation_section(
+                "Continue l'analyse pour compléter l'estimation du bien.", min_tokens=300
+            )
+            section_estimation.extend(continuation)
         pdf_sections.append(generer_pdf_section("Estimation & Analyse", section_estimation))
         progress_map[job_id] = 80
 
         # Section 5 : Conclusion & Recommandations (prompt modifié)
         section_conclusion = generate_estimation_section(
             f"Fournis uniquement des recommandations pratiques et détaillées pour la vente du bien de {signature}. "
-            "Utilise des phrases complètes, claires et bien structurées, et ajoute de petits emojis pour souligner les points clés. "
+            "Concentre-toi sur des stratégies de mise en marché, le positionnement du prix et des conseils pour attirer les acheteurs. "
             "Ne donne pas d'estimation de prix ni d'analyse détaillée du marché.",
-        min_tokens=300
+            min_tokens=300
         )
-
         pdf_sections.append(generer_pdf_section("Conclusion & Recommandations", section_conclusion))
         progress_map[job_id] = 90
 
-        # Page de fin (on passe un titre vide pour n'afficher que l'image)
+        # Page de fin
         if len(resized) > 1:
             pdf_sections.append(generer_pdf_section("", [Image(resized[1], width=469, height=716)]))
+        # Ajout du message final
+        pdf_sections.append(generer_pdf_section("", [Paragraph("Cordialement, Expert immobilier.", getSampleStyleSheet()["BodyText"])]))
 
         # Fusion finale des sections
         assembler_pdf(pdf_sections, final_pdf_path)
