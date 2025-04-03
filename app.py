@@ -138,13 +138,14 @@ def generate_estimation_section(prompt, min_tokens=800):
             {
                 "role": "system",
                 "content": (
-                    "Tu es un expert en immobilier en France. Ta mission est de rédiger un rapport d'analyse détaillé, synthétique et professionnel pour un bien immobilier. Le rapport doit comporter plusieurs sections détaillées et inclure :\n"
+                    "Tu es un expert en immobilier en France. Ta mission est de rédiger un rapport d'analyse détaillé, synthétique et professionnel pour un bien immobilier. "
+                    "Le rapport doit comporter plusieurs sections détaillées et inclure :\n"
                     "1. Une introduction personnalisée reprenant les informations du client (civilité, prénom, nom, adresse, etc.).\n"
                     "2. Une comparaison des prix des biens récemment vendus dans le même secteur, avec des tableaux récapitulatifs (prix au m², rendement locatif en pourcentage, etc.).\n"
                     "3. Des prévisions claires sur l'évolution du marché à 5 et 10 ans.\n"
-                    "4. Une description précise de la localisation du bien sur un plan (par exemple, coordonnées géographiques ou description détaillée de l'emplacement).\n"
-                    "Utilise intelligemment les données fournies et ne te contente pas de les répéter. Sois synthétique et oriente ton analyse vers des recommandations pratiques."
-
+                    "4. Une description précise de la localisation du bien sur un plan.\n"
+                    "Utilise intelligemment les données fournies, rédige des phrases complètes et termine-les correctement. "
+                    "Ne répète pas inutilement le titre de la section ni des formules de salutation."
                 )
             },
             {"role": "user", "content": prompt}
@@ -156,7 +157,6 @@ def generate_estimation_section(prompt, min_tokens=800):
     content = response.choices[0].message.content.strip()
     if not content.endswith(('.', '!', '?')):
         content += "."
-    # Si le contenu contient une formule indésirable, on la coupe.
     if "Cordialement," in content:
         content = content.split("Cordialement,")[0].strip()
     return markdown_to_elements(content)
@@ -404,24 +404,32 @@ def generate_estimation():
              f"Type de bien : {form_data.get('type_bien', '')}, superficie : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface')} m².\n"
              f"État général : {form_data.get('etat_general', '')}, travaux : {form_data.get('travaux_recent', '')} ({form_data.get('travaux_details', '')}), problèmes : {form_data.get('problemes', '')}.\n"
              f"Équipements : {form_data.get('equipement_cuisine', '')}, électroménagers : {form_data.get('electromenager', '')}, sécurité : {form_data.get('securite', '')}.\n"
-             f"DPE : {form_data.get('dpe', '')}, orientation : {form_data.get('orientation', '')}, vue : {form_data.get('vue', '')}."),
+             f"DPE : {form_data.get('dpe', '')}, orientation : {form_data.get('orientation', '')}, vue : {form_data.get('vue', '')}. "
+             "Terminez toutes les phrases correctement et n'incluez aucune formule de salutation ou signature à la fin."
+            ),
             ("Analyse des Données DVF", 
-             "Voici les données comparatives extraites du fichier DVF officiel. Utilise **ces données comme base prioritaire pour l’estimation** et **ne les ignore jamais**. "
-             "Tu trouveras un tableau récapitulatif des dernières ventes similaires, suivi d’un graphique des prix au m² sur les dernières années."),
+             "Voici les données comparatives extraites du fichier DVF officiel. Utilisez ces données comme base prioritaire pour l’estimation. "
+             "Présentez un tableau récapitulatif des dernières ventes similaires, suivi d’un graphique des prix au m² sur les dernières années. "
+             "Assurez-vous que chaque phrase soit complète."
+            ),
             ("Environnement & Quartier", 
-             f"Adresse : {form_data.get('adresse', '')}, quartier : {form_data.get('quartier', '')}.\n"
-             f"Atouts : {form_data.get('atouts_quartier', '')}.\n"
-             f"Commodités : commerces ({form_data.get('distance_commerces', '')}), écoles primaires ({form_data.get('distance_primaires', '')}), secondaires ({form_data.get('distance_secondaires', '')}).\n"
-             f"Projets à venir : {form_data.get('developpement', '')}, circulation : {form_data.get('circulation', '')}."),
+             f"Adresse : {form_data.get('adresse', '')}, quartier : {form_data.get('quartier', '')}. "
+             f"Atouts : {form_data.get('atouts_quartier', '')}. "
+             f"Commodités : commerces ({form_data.get('distance_commerces', '')}), écoles primaires ({form_data.get('distance_primaires', '')}), secondaires ({form_data.get('distance_secondaires', '')}). "
+             f"Projets à venir : {form_data.get('developpement', '')}, circulation : {form_data.get('circulation', '')}. "
+             "Veillez à ce que toutes les phrases soient complètes."
+            ),
             ("Estimation & Analyse IA", 
-             f"Estime la valeur réelle de ce bien (fourchette en €) en t'appuyant **exclusivement** sur les données DVF et les réponses ci-dessus.\n"
+             f"Basé exclusivement sur les données DVF et sur les prix réels observés sur des annonces en ligne, fournissez une estimation chiffrée sous forme de fourchette pour le bien de {signature}.\n"
              f"Historique : temps sur le marché ({form_data.get('temps_marche', '')}), offres : {form_data.get('offres', '')}, raison de vente : {form_data.get('raison_vente', '')}.\n"
-             f"Prix similaires : {form_data.get('prix_similaires', '')}, prix visé : {form_data.get('prix', '')} (négociable : {form_data.get('negociation', '')})."),
+             f"Prix similaires : {form_data.get('prix_similaires', '')}, prix visé : {form_data.get('prix', '')} (négociable : {form_data.get('negociation', '')}). "
+             "Terminez toutes les phrases et fournissez une estimation chiffrée complète."
+            ),
             ("Analyse prédictive et Recommandations", 
-             f"📈 **Prévision** : Évolution potentielle du prix sur 5 à 10 ans dans la zone de {form_data.get('quartier', '')}, selon projets locaux et marché.\n\n"
-             f"✅ **Recommandations** :\n"
-             f"Occupation actuelle : {form_data.get('occupe', '')}, dettes : {form_data.get('dettes', '')}, charges : {form_data.get('charges_fixes', '')}.\n"
-             f"Contraintes : {form_data.get('contraintes', '')}, documents : {form_data.get('documents', '')}, conditions spéciales : {form_data.get('conditions', '')}.\n")
+             f"Oubliez tout le contexte précédent. À partir de zéro, fournissez uniquement des recommandations pratiques pour optimiser la vente du bien de {signature}. "
+             "Concentrez-vous sur des stratégies de mise en marché, le positionnement du prix et des conseils concrets pour attirer les acheteurs. "
+             "N'incluez aucune estimation de prix ni analyse détaillée du marché. Terminez toutes les phrases correctement."
+            )
         ]
 
         for index, (title, prompt) in enumerate(sections):
@@ -462,7 +470,7 @@ def generate_estimation_background(job_id, form_data):
         signature = f"{form_data.get('civilite', '')} {form_data.get('prenom', '')} {form_data.get('nom', '')}"
         final_pdf_path = os.path.join(PDF_FOLDER, f"estimation_{name.replace(' ', '_')}_{job_id}.pdf")
 
-        # Pages de garde (on garde le code actuel pour les couvertures)
+        # Pages de garde (reste inchangé)
         covers = ["static/cover_image.png", "static/cover_image1.png"]
         resized = []
         for img_path in covers:
@@ -473,7 +481,6 @@ def generate_estimation_background(job_id, form_data):
 
         pdf_sections = []
         if resized:
-            # Pour la page de garde, on passe un titre vide pour n'afficher que l'image.
             pdf_sections.append(generer_pdf_section("", [Image(resized[0], width=469, height=716)]))
         progress_map[job_id] = 10
 
@@ -518,7 +525,7 @@ def generate_estimation_background(job_id, form_data):
             f"- Historique : temps sur le marché ({form_data.get('temps_marche', '')}), offres : {form_data.get('offres', '')}, "
             f"raison de vente : {form_data.get('raison_vente', '')}\n"
             f"- Prix similaires : {form_data.get('prix_similaires', '')}, Prix visé : {form_data.get('prix', '')} (négociable : {form_data.get('negociation', '')}).\n"
-            "Donne une estimation chiffrée sous forme de fourchette précise.",
+            "Donnez une estimation chiffrée sous forme de fourchette précise. Terminez toutes les phrases.",
             min_tokens=600
         )
         full_text = ""
@@ -535,11 +542,11 @@ def generate_estimation_background(job_id, form_data):
         pdf_sections.append(generer_pdf_section("Estimation & Analyse", section_estimation))
         progress_map[job_id] = 80
 
-        # Section 5 : Conclusion & Recommandations (avec contexte réinitialisé)
+        # Section 5 : Conclusion & Recommandations (avec réinitialisation du contexte)
         section_conclusion = generate_estimation_section(
-            f"Ignore tout le contexte précédent. Fournis uniquement des recommandations pratiques et détaillées pour optimiser la vente du bien de {signature}. "
-            "Concentre-toi sur des stratégies de mise en marché, le positionnement du prix et des conseils concrets pour attirer les acheteurs. "
-            "Ne donne aucune estimation de prix ni analyse détaillée du marché.",
+            f"Oubliez tout le contexte précédent. À partir de zéro, fournissez uniquement des recommandations pratiques pour optimiser la vente du bien de {signature}. "
+            "Concentrez-vous sur des stratégies de mise en marché, le positionnement du prix et des conseils concrets pour attirer les acheteurs. "
+            "N'incluez aucune estimation de prix ni analyse détaillée du marché. Terminez toutes les phrases correctement.",
             min_tokens=300
         )
         pdf_sections.append(generer_pdf_section("Conclusion & Recommandations", section_conclusion))
@@ -548,7 +555,6 @@ def generate_estimation_background(job_id, form_data):
         # Page de fin
         if len(resized) > 1:
             pdf_sections.append(generer_pdf_section("", [Image(resized[1], width=469, height=716)]))
-        # Ajout du message final
         pdf_sections.append(generer_pdf_section("", [Paragraph("Cordialement, Expert immobilier.", getSampleStyleSheet()["BodyText"])]))
 
         # Fusion finale des sections
