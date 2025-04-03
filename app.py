@@ -112,6 +112,23 @@ def add_section_title(elements, title):
     elements.append(Paragraph(title, title_style))
     elements.append(Spacer(1, 10))
 
+# Style personnalisé pour le résumé du questionnaire
+def style_resume(text):
+    resume_style = ParagraphStyle(
+        'ResumeStyle',
+        parent=getSampleStyleSheet()['BodyText'],
+        fontName='Helvetica',
+        fontSize=11,
+        leading=14,
+        textColor=colors.black,
+        backColor=colors.whitesmoke,
+        borderColor=colors.HexColor("#00C7C4"),
+        borderWidth=0.5,
+        borderPadding=6,
+        spaceAfter=12
+    )
+    return Paragraph(text, resume_style)
+
 def generate_estimation_section(prompt, min_tokens=800):
     logging.info("Génération de la section d'estimation avec OpenAI...")
     response = client.chat.completions.create(
@@ -168,9 +185,7 @@ def load_dvf_data_avance(form_data):
         dept_code = code_postal[:2]
         file_path_gz = os.path.join(DVF_FOLDER, f"{dept_code}.csv.gz")
         file_path_csv = os.path.join(DVF_FOLDER, f"{dept_code}.csv")
-
         logging.info(f"Recherche du fichier DVF pour le département {dept_code}...")
-
         if os.path.exists(file_path_gz):
             logging.info(f"📂 Chargement du fichier GZ : {file_path_gz}")
             df = pd.read_csv(file_path_gz, sep=",", low_memory=False)
@@ -182,17 +197,14 @@ def load_dvf_data_avance(form_data):
         else:
             logging.error(f"Aucun fichier trouvé pour le département {dept_code}.")
             return None, f"Aucun fichier trouvé pour le département {dept_code}."
-
         logging.info("🔍 Exemple brut code_postal (avant normalisation) : %s", df["code_postal"].dropna().astype(str).unique()[:10])
         df = normalize_columns(df)
         logging.info("✅ Colonnes après normalisation : %s", df.columns.tolist())
-
         if "code_postal" in df.columns:
             df["code_postal"] = df["code_postal"].astype(str).str.strip().str.zfill(5)
             logging.info("🔍 code_postal après normalisation : %s", df["code_postal"].dropna().unique()[:10])
         if "adresse" in df.columns:
             logging.info("🔍 Exemple d'adresse après normalisation : %s", df["adresse"].dropna().unique()[:5])
-
         df = df[df["code_postal"] == code_postal]
         logging.info("📊 Lignes après filtrage type_local=%s : %d", type_bien, len(df))
         df_initial = df.copy()
@@ -204,11 +216,9 @@ def load_dvf_data_avance(form_data):
         if df.empty:
             logging.warning("⚠️ Aucune correspondance sur l’adresse, on garde tous les biens du code postal.")
             df = df_initial
-
         if "surface_reelle_bati" not in df.columns or "valeur_fonciere" not in df.columns:
             logging.error("❌ Colonnes 'surface_reelle_bati' ou 'valeur_fonciere' absentes !")
             return None, "Colonnes manquantes"
-
         df = df[(df["surface_reelle_bati"] > 10) & (df["valeur_fonciere"] > 1000)]
         if surface_bien > 0:
             df = df[df["surface_reelle_bati"].between(surface_bien * 0.7, surface_bien * 1.3)]
@@ -217,7 +227,6 @@ def load_dvf_data_avance(form_data):
         elapsed = time.time() - start_time
         logging.info(f"✅ Chargement DVF terminé en {elapsed:.2f}s ({len(df)} lignes après filtrage).")
         return df, None
-
     except Exception as e:
         logging.error(f"❌ Erreur dans load_dvf_data_avance: {str(e)}")
         return None, f"Erreur DVF : {str(e)}"
@@ -277,10 +286,12 @@ def generate_dvf_chart(form_data):
         df["année"] = df["date_mutation"].dt.year
         prix_m2_par_annee = df.groupby("année")["prix_m2"].mean().round(0)
         plt.figure(figsize=(8, 5))
-        prix_m2_par_annee.plot(kind="line", marker="o", title=f"Évolution du prix moyen au m² - {code_postal}")
-        plt.ylabel("Prix moyen au m² (€)")
-        plt.xlabel("Année")
-        plt.grid(True)
+        plt.plot(prix_m2_par_annee.index, prix_m2_par_annee.values, marker="o", linestyle="-", 
+                 color="#00C7C4", markerfacecolor="#007A7E", markeredgecolor="white")
+        plt.title(f"Évolution du prix moyen au m² - {code_postal}", fontsize=14, color="#333333")
+        plt.xlabel("Année", fontsize=12)
+        plt.ylabel("Prix moyen au m² (€)", fontsize=12)
+        plt.grid(True, linestyle="--", alpha=0.6)
         plt.tight_layout()
         tmp_img = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
         plt.savefig(tmp_img.name)
@@ -328,16 +339,19 @@ def center_image(image_path, width=400, height=300):
 from PyPDF2 import PdfMerger
 
 def generer_pdf_section(titre, elements):
-    """Génère un PDF pour une section donnée avec les marges standard."""
+    """
+    Génère un PDF pour une section donnée avec les marges standard.
+    Si 'titre' est vide, aucun titre ne sera ajouté.
+    """
     temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     doc = SimpleDocTemplate(temp_pdf.name, pagesize=A4,
                             topMargin=2*cm, bottomMargin=2*cm,
                             leftMargin=2*cm, rightMargin=2*cm)
     story = []
-    add_section_title(story, titre)
+    if titre:  # N'ajoute le titre que s'il n'est pas vide.
+        add_section_title(story, titre)
     story.extend(elements)
-    # Ajout de la numérotation des pages si souhaité :
-    doc.build(story)  # Pour ajouter la numérotation, il suffit d'utiliser onFirstPage et onLaterPages si désiré.
+    doc.build(story)
     return temp_pdf.name
 
 def assembler_pdf(fichiers_pdf, pdf_final_path):
@@ -452,17 +466,17 @@ def generate_estimation_background(job_id, form_data):
 
         pdf_sections = []
         if resized:
-            # On ajoute la première page de garde exactement comme actuellement
-            pdf_sections.append(generer_pdf_section("Page de Garde", [Image(resized[0], width=469, height=716)]))
+            # Pour la page de garde, on passe un titre vide pour n'afficher que l'image.
+            pdf_sections.append(generer_pdf_section("", [Image(resized[0], width=469, height=716)]))
         progress_map[job_id] = 10
 
-        # Section 1 : Résumé du questionnaire
+        # Section 1 : Résumé du questionnaire (amélioré)
         résumé = ""
         for key, value in form_data.items():
             if isinstance(value, str) and value.strip():
                 label = key.replace("_", " ").capitalize()
-                résumé += f"- {label} : {value.strip()}\n"
-        section_resume = [Paragraph(résumé.strip().replace("\n", "<br/>"), getSampleStyleSheet()['BodyText'])]
+                résumé += f"<b>{label} :</b> {value.strip()}<br/>"
+        section_resume = [style_resume(résumé.strip())]
         pdf_sections.append(generer_pdf_section("Résumé du Questionnaire", section_resume))
         progress_map[job_id] = 30
 
@@ -500,21 +514,17 @@ def generate_estimation_background(job_id, form_data):
         pdf_sections.append(generer_pdf_section("Estimation & Analyse", section_estimation))
         progress_map[job_id] = 80
 
-        # Section 5 : Conclusion & Recommandations
+        # Section 5 : Conclusion & Recommandations (prompt modifié)
         section_conclusion = generate_estimation_section(
-            f"Fournis une conclusion claire et professionnelle pour {signature}, avec uniquement :\n"
-            f"- Une prévision sur l’évolution du marché local\n"
-            f"- Des conseils pratiques pour mieux vendre\n"
-            f"- Aucune répétition de la fourchette de prix\n"
-            f"- Une phrase finale bien construite (pas de cordialement ici)",
+            f"Fournis uniquement des recommandations pratiques pour la vente du bien de {signature}. Concentre-toi sur des stratégies de mise en marché, le positionnement du prix et des conseils pour attirer les acheteurs. Ne donne pas d'estimation de prix ni d'analyse détaillée du marché.",
             min_tokens=300
         )
         pdf_sections.append(generer_pdf_section("Conclusion & Recommandations", section_conclusion))
         progress_map[job_id] = 90
 
-        # Optionnel : Page de fin
+        # Page de fin (on passe un titre vide pour n'afficher que l'image)
         if len(resized) > 1:
-            pdf_sections.append(generer_pdf_section("Page de Fin", [Image(resized[1], width=469, height=716)]))
+            pdf_sections.append(generer_pdf_section("", [Image(resized[1], width=469, height=716)]))
 
         # Fusion finale des sections
         assembler_pdf(pdf_sections, final_pdf_path)
