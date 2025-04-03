@@ -40,9 +40,7 @@ def normalize_columns(df):
     """
     Nettoie et renomme toutes les colonnes DVF + fusionne adresse + force les types.
     """
-    # Normalisation des noms de colonnes
     df.columns = [c.strip().lower().replace(" ", "_") for c in df.columns]
-
     rename_map = {
         "valeur_fonciere": "valeur_fonciere",
         "surface_reelle_bati": "surface_reelle_bati",
@@ -53,23 +51,18 @@ def normalize_columns(df):
         "adresse_numero": "numero_voie",
     }
     df = df.rename(columns=rename_map)
-
-    # 🔐 Force type str + nettoyage
     if "code_postal" in df.columns:
         df["code_postal"] = df["code_postal"].apply(
             lambda x: str(int(float(x))).zfill(5) if pd.notna(x) and str(x).replace('.', '', 1).isdigit() else None
         )
     if "numero_voie" in df.columns:
         df["numero_voie"] = df["numero_voie"].astype(str).str.replace(r"\.0$", "", regex=True).str.strip()
-
     if "nom_voie" in df.columns:
         df["nom_voie"] = df["nom_voie"].astype(str).str.strip()
-
     if "numero_voie" in df.columns and "nom_voie" in df.columns:
         df["adresse"] = df["numero_voie"] + " " + df["nom_voie"]
     elif "nom_voie" in df.columns:
         df["adresse"] = df["nom_voie"]
-
     return df
 
 def markdown_to_elements(md_text):
@@ -78,8 +71,6 @@ def markdown_to_elements(md_text):
     soup = BeautifulSoup(html_content, "html.parser")
     styles = getSampleStyleSheet()
     PAGE_WIDTH = A4[0] - 4 * cm
-
-    # Recherche de tous les tableaux, même imbriqués
     for table in soup.find_all("table"):
         table_data = []
         for row in table.find_all("tr"):
@@ -89,18 +80,16 @@ def markdown_to_elements(md_text):
         col_count = len(table_data[0]) if table_data and table_data[0] else 1
         col_width = PAGE_WIDTH / col_count
         table_style = TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#00A8A8")),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, -1), 9),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
         ])
         table_obj = Table(table_data, colWidths=[col_width] * col_count, style=table_style)
         elements.append(table_obj)
-
-    # Traitement des autres éléments de premier niveau (non-tableaux)
     for elem in soup.find_all(recursive=False):
         if elem.name != "table":
             paragraph = Paragraph(elem.get_text(strip=True), styles['BodyText'])
@@ -108,19 +97,20 @@ def markdown_to_elements(md_text):
             elements.append(Spacer(1, 12))
     return elements
 
+# Amélioration du design du titre de section
 def add_section_title(elements, title):
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
         'SectionTitle',
-        fontSize=16,
-        fontName='Helvetica',
-        textColor=colors.HexColor("#00C7C4"),
+        fontSize=18,
+        fontName='Helvetica-Bold',
+        textColor=colors.HexColor("#00A8A8"),
         alignment=1,
-        spaceAfter=12,
-        underline=True
+        spaceAfter=14,
+        spaceBefore=14,
     )
     elements.append(Paragraph(title, title_style))
-    elements.append(Spacer(1, 12))
+    elements.append(Spacer(1, 10))
 
 def generate_estimation_section(prompt, min_tokens=800):
     logging.info("Génération de la section d'estimation avec OpenAI...")
@@ -163,7 +153,6 @@ def load_dvf_data_avance(form_data):
         code_postal = str(form_data.get("code_postal", "")).zfill(5)
         adresse = form_data.get("adresse", "").lower()
         type_bien = form_data.get("type_bien", "").capitalize()
-        # 🔍 Récupération intelligente de la surface selon le type de bien
         surface_bien = 0
         try:
             if form_data.get("type_bien") == "maison":
@@ -195,8 +184,6 @@ def load_dvf_data_avance(form_data):
             return None, f"Aucun fichier trouvé pour le département {dept_code}."
 
         logging.info("🔍 Exemple brut code_postal (avant normalisation) : %s", df["code_postal"].dropna().astype(str).unique()[:10])
-
-        # 🔄 Normalisation
         df = normalize_columns(df)
         logging.info("✅ Colonnes après normalisation : %s", df.columns.tolist())
 
@@ -206,7 +193,6 @@ def load_dvf_data_avance(form_data):
         if "adresse" in df.columns:
             logging.info("🔍 Exemple d'adresse après normalisation : %s", df["adresse"].dropna().unique()[:5])
 
-        # 💡 Filtrage
         df = df[df["code_postal"] == code_postal]
         logging.info("📊 Lignes après filtrage type_local=%s : %d", type_bien, len(df))
         df_initial = df.copy()
@@ -228,7 +214,6 @@ def load_dvf_data_avance(form_data):
             df = df[df["surface_reelle_bati"].between(surface_bien * 0.7, surface_bien * 1.3)]
         df["prix_m2"] = df["valeur_fonciere"] / df["surface_reelle_bati"]
         df = df.sort_values(by="date_mutation", ascending=False)
-
         elapsed = time.time() - start_time
         logging.info(f"✅ Chargement DVF terminé en {elapsed:.2f}s ({len(df)} lignes après filtrage).")
         return df, None
@@ -339,73 +324,31 @@ def center_image(image_path, width=400, height=300):
     img.hAlign = 'CENTER'
     return img
 
+# --- Fonctions pour la génération section par section et la fusion ---
+from PyPDF2 import PdfMerger
 
-# Fonction améliorée pour styliser les titres des sections
-def add_section_title(elements, title):
-    style_titre = ParagraphStyle(
-        'TitrePro',
-        fontSize=18,
-        textColor=colors.HexColor("#00A8A8"),
-        alignment=TA_CENTER,
-        spaceAfter=14,
-        spaceBefore=14,
-        fontName='Helvetica-Bold'
-    )
-    elements.append(Paragraph(title, style_titre))
-    elements.append(Spacer(1, 10))
-
-# Fonction pour encadrer les infos clés (prix, recommandations, etc.)
-def encadre_info_cle(texte):
-    style_encadre = ParagraphStyle(
-        'encadre',
-        fontSize=12,
-        backColor=colors.HexColor("#E8F9F9"),
-        borderColor=colors.HexColor("#00C7C4"),
-        borderWidth=1,
-        borderPadding=8,
-        spaceAfter=12,
-        alignment=TA_CENTER,
-    )
-    return Paragraph(texte, style_encadre)
-
-# Génération individuelle des PDFs des sections
-def generer_pdf_section(titre, elements, is_cover=False):
+def generer_pdf_section(titre, elements):
+    """Génère un PDF pour une section donnée avec les marges standard."""
     temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-
-    if is_cover:
-        doc = SimpleDocTemplate(temp_pdf.name, pagesize=A4,
-                                topMargin=0, bottomMargin=0,
-                                leftMargin=0, rightMargin=0)
-    else:
-        doc = SimpleDocTemplate(temp_pdf.name, pagesize=A4,
-                                topMargin=2*cm, bottomMargin=2*cm,
-                                leftMargin=2*cm, rightMargin=2*cm)
-
+    doc = SimpleDocTemplate(temp_pdf.name, pagesize=A4,
+                            topMargin=2*cm, bottomMargin=2*cm,
+                            leftMargin=2*cm, rightMargin=2*cm)
     story = []
-    if not is_cover:
-        add_section_title(story, titre)
+    add_section_title(story, titre)
     story.extend(elements)
-    doc.build(story)
+    # Ajout de la numérotation des pages si souhaité :
+    doc.build(story)  # Pour ajouter la numérotation, il suffit d'utiliser onFirstPage et onLaterPages si désiré.
     return temp_pdf.name
 
-
-# Fusion finale de tous les PDFs individuels
-from PyPDF2 import PdfMerger
 def assembler_pdf(fichiers_pdf, pdf_final_path):
+    """Fusionne une liste de PDF en un seul document final."""
     merger = PdfMerger()
     for pdf in fichiers_pdf:
         merger.append(pdf)
     with open(pdf_final_path, "wb") as fout:
         merger.write(fout)
 
-# Numérotation automatique des pages
-def numerotation_page(canvas, doc):
-    canvas.saveState()
-    canvas.setFont('Helvetica', 9)
-    canvas.drawCentredString(A4[0] / 2, 1 * cm, f"Page {doc.page}")
-    canvas.restoreState()
-
-
+# --- Endpoints Flask ---
 
 @app.route("/generate_estimation", methods=["POST"])
 def generate_estimation():
@@ -422,7 +365,7 @@ def generate_estimation():
                                 leftMargin=2*cm, rightMargin=2*cm)
         elements = []
 
-        # Page de garde
+        # Page de garde (reste inchangée)
         covers = ["static/cover_image.png", "static/cover_image1.png"]
         resized = []
         for img_path in covers:
@@ -434,16 +377,14 @@ def generate_estimation():
         elements.append(Image(resized[0], width=469, height=716))
         elements.append(PageBreak())
     
-        # Sections manuelles
+        # Sections manuelles (générées en une seule fois)
         sections = [
             ("Résumé des données du questionnaire", resume_data),
             ("Introduction et Détails du bien", 
-             f"Client : {form_data.get('civilite', '')} {form_data.get('prenom', '')} {form_data.get('nom', '')}, "
-             f"domicilié(e) à {form_data.get('adresse_personnelle', '')} ({form_data.get('code_postal', '')}).\n"
+             f"Client : {form_data.get('civilite', '')} {form_data.get('prenom', '')} {form_data.get('nom', '')}, domicilié(e) à {form_data.get('adresse_personnelle', '')} ({form_data.get('code_postal', '')}).\n"
              f"Email : {form_data.get('email', '')}, téléphone : {form_data.get('telephone', '')}.\n\n"
              f"Type de bien : {form_data.get('type_bien', '')}, superficie : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface')} m².\n"
-             f"État général : {form_data.get('etat_general', '')}, travaux : {form_data.get('travaux_recent', '')} ({form_data.get('travaux_details', '')}), "
-             f"problèmes : {form_data.get('problemes', '')}.\n"
+             f"État général : {form_data.get('etat_general', '')}, travaux : {form_data.get('travaux_recent', '')} ({form_data.get('travaux_details', '')}), problèmes : {form_data.get('problemes', '')}.\n"
              f"Équipements : {form_data.get('equipement_cuisine', '')}, électroménagers : {form_data.get('electromenager', '')}, sécurité : {form_data.get('securite', '')}.\n"
              f"DPE : {form_data.get('dpe', '')}, orientation : {form_data.get('orientation', '')}, vue : {form_data.get('vue', '')}."),
             ("Analyse des Données DVF", 
@@ -456,8 +397,7 @@ def generate_estimation():
              f"Projets à venir : {form_data.get('developpement', '')}, circulation : {form_data.get('circulation', '')}."),
             ("Estimation & Analyse IA", 
              f"Estime la valeur réelle de ce bien (fourchette en €) en t'appuyant **exclusivement** sur les données DVF et les réponses ci-dessus.\n"
-             f"Historique : temps sur le marché ({form_data.get('temps_marche', '')}), offres : {form_data.get('offres', '')}, "
-             f"raison de vente : {form_data.get('raison_vente', '')}.\n"
+             f"Historique : temps sur le marché ({form_data.get('temps_marche', '')}), offres : {form_data.get('offres', '')}, raison de vente : {form_data.get('raison_vente', '')}.\n"
              f"Prix similaires : {form_data.get('prix_similaires', '')}, prix visé : {form_data.get('prix', '')} (négociable : {form_data.get('negociation', '')})."),
             ("Analyse prédictive et Recommandations", 
              f"📈 **Prévision** : Évolution potentielle du prix sur 5 à 10 ans dans la zone de {form_data.get('quartier', '')}, selon projets locaux et marché.\n\n"
@@ -466,7 +406,6 @@ def generate_estimation():
              f"Contraintes : {form_data.get('contraintes', '')}, documents : {form_data.get('documents', '')}, conditions spéciales : {form_data.get('conditions', '')}.\n")
         ]
 
-        # Pour chaque section, on force le début de la section sur une nouvelle page.
         for index, (title, prompt) in enumerate(sections):
             if index > 0:
                 elements.append(PageBreak())
@@ -489,9 +428,7 @@ def generate_estimation():
         logging.error(f"Erreur dans generate_estimation: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-# ==============================
-# Endpoints pour génération asynchrone avec faux curseur et intégration DVF
-# ==============================
+# --- Endpoints pour génération asynchrone (section par section fusionnée) ---
 progress_map = {}  # job_id -> progression (0-100)
 results_map = {}   # job_id -> chemin du PDF généré
 
@@ -504,80 +441,83 @@ def generate_estimation_background(job_id, form_data):
         signature = f"{form_data.get('civilite', '')} {form_data.get('prenom', '')} {form_data.get('nom', '')}"
         final_pdf_path = os.path.join(PDF_FOLDER, f"estimation_{name.replace(' ', '_')}_{job_id}.pdf")
 
+        # Pages de garde (on garde le code actuel pour les couvertures)
         covers = ["static/cover_image.png", "static/cover_image1.png"]
+        resized = []
         for img_path in covers:
             if os.path.exists(img_path):
-                img = Image(img_path, width=A4[0], height=A4[1])
-                img.hAlign = 'CENTER'
-                cover_pdf_path = generer_pdf_section("", [img], is_cover=True)
-                resized_covers.append(cover_pdf_path)
-
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                    resize_image(img_path, tmp.name)
+                    resized.append(tmp.name)
 
         pdf_sections = []
-
+        if resized:
+            # On ajoute la première page de garde exactement comme actuellement
+            pdf_sections.append(generer_pdf_section("Page de Garde", [Image(resized[0], width=469, height=716)]))
         progress_map[job_id] = 10
 
-        # ✅ Résumé du questionnaire
-        résumé = "\n".join([f"- **{k.replace('_', ' ').capitalize()}** : {v}" for k, v in form_data.items()])
-        elements_resume = markdown_to_elements(résumé)
-        pdf_sections.append(generer_pdf_section("Résumé du Questionnaire", elements_resume))
-        progress_map[job_id] = 20
+        # Section 1 : Résumé du questionnaire
+        résumé = ""
+        for key, value in form_data.items():
+            if isinstance(value, str) and value.strip():
+                label = key.replace("_", " ").capitalize()
+                résumé += f"- {label} : {value.strip()}\n"
+        section_resume = [Paragraph(résumé.strip().replace("\n", "<br/>"), getSampleStyleSheet()['BodyText'])]
+        pdf_sections.append(generer_pdf_section("Résumé du Questionnaire", section_resume))
+        progress_map[job_id] = 30
 
-        # ✅ Introduction
-        intro_prompt = (
-            f"Rédige une introduction synthétique et professionnelle pour {signature}, concernant l'estimation de son bien situé à "
-            f"{form_data.get('adresse')} ({form_data.get('code_postal')}). Ce rapport repose uniquement sur les réponses du formulaire et les données DVF."
+        # Section 2 : Introduction
+        section_intro = generate_estimation_section(
+            f"Rédige une introduction synthétique et professionnelle pour {signature}, concernant l'estimation de son bien situé à {form_data.get('adresse')} ({form_data.get('code_postal')}). Ce rapport repose uniquement sur les réponses du formulaire et les données DVF.",
+            min_tokens=300
         )
-        elements_intro = generate_estimation_section(intro_prompt, min_tokens=300)
-        pdf_sections.append(generer_pdf_section("Introduction", elements_intro))
-        progress_map[job_id] = 35
+        pdf_sections.append(generer_pdf_section("Introduction", section_intro))
+        progress_map[job_id] = 40
 
-        # ✅ Analyse des Données DVF (ta logique actuelle exactement conservée)
+        # Section 3 : Analyse des Données DVF
         dvf_table_md = get_dvf_comparables(form_data)
-        elements_dvf = markdown_to_elements(dvf_table_md)
+        section_dvf = markdown_to_elements(dvf_table_md)
         dvf_chart_path = generate_dvf_chart(form_data)
         if dvf_chart_path:
-            elements_dvf.append(center_image(dvf_chart_path))
-        pdf_sections.append(generer_pdf_section("Analyse des Données DVF", elements_dvf))
-        progress_map[job_id] = 50
+            section_dvf.append(Spacer(1, 12))
+            section_dvf.append(center_image(dvf_chart_path, width=400, height=300))
+            section_dvf.append(Paragraph("Évolution du prix moyen au m²", getSampleStyleSheet()['Heading3']))
+        pdf_sections.append(generer_pdf_section("Analyse des Données DVF", section_dvf))
+        progress_map[job_id] = 60
 
-        # ✅ Estimation & Analyse IA (ta logique actuelle exactement conservée)
-        estimation_prompt = (
+        # Section 4 : Estimation & Analyse
+        section_estimation = generate_estimation_section(
             f"Voici les données DVF extraites :\n{dvf_table_md}\n\n"
-            f"Analyse les données suivantes pour estimer précisément le prix total du bien de {signature} situé à {form_data.get('adresse')} :\n"
+            f"Analyse les données suivantes pour estimer le prix total du bien de {signature} :\n"
             f"- Type : {form_data.get('type_bien', '')}, Surface : {form_data.get('app_surface') or form_data.get('maison_surface') or form_data.get('terrain_surface', '')} m²\n"
             f"- Quartier : {form_data.get('quartier', '')}, Code postal : {form_data.get('code_postal', '')}\n"
             f"- État : {form_data.get('etat_general', '')}, Travaux : {form_data.get('travaux_recent', '')} ({form_data.get('travaux_details', '')})\n"
             f"- Historique : temps sur le marché ({form_data.get('temps_marche', '')}), offres : {form_data.get('offres', '')}, "
             f"raison de vente : {form_data.get('raison_vente', '')}\n"
-            f"- Prix similaires : {form_data.get('prix_similaires', '')}, prix visé : {form_data.get('prix', '')} (négociable : {form_data.get('negociation', '')})."
+            f"- Prix similaires : {form_data.get('prix_similaires', '')}, prix visé : {form_data.get('prix', '')} (négociable : {form_data.get('negociation', '')}).",
+            min_tokens=600
         )
-        elements_estimation = generate_estimation_section(estimation_prompt, min_tokens=600)
-        elements_estimation.insert(0, encadre_info_cle("Voici votre estimation personnalisée"))
-        pdf_sections.append(generer_pdf_section("Estimation & Analyse", elements_estimation))
-        progress_map[job_id] = 70
+        pdf_sections.append(generer_pdf_section("Estimation & Analyse", section_estimation))
+        progress_map[job_id] = 80
 
-        # ✅ Conclusion & Recommandations (ta logique actuelle exactement conservée)
-        conclusion_prompt = (
+        # Section 5 : Conclusion & Recommandations
+        section_conclusion = generate_estimation_section(
             f"Fournis une conclusion claire et professionnelle pour {signature}, avec uniquement :\n"
             f"- Une prévision sur l’évolution du marché local\n"
             f"- Des conseils pratiques pour mieux vendre\n"
             f"- Aucune répétition de la fourchette de prix\n"
-            f"- Une phrase finale bien construite (pas de cordialement ici)"
+            f"- Une phrase finale bien construite (pas de cordialement ici)",
+            min_tokens=300
         )
-        elements_conclusion = generate_estimation_section(conclusion_prompt, min_tokens=300)
-        pdf_sections.append(generer_pdf_section("Conclusion & Recommandations", elements_conclusion))
-        progress_map[job_id] = 85
+        pdf_sections.append(generer_pdf_section("Conclusion & Recommandations", section_conclusion))
+        progress_map[job_id] = 90
 
-        # ✅ Assemblage final avec pages de garde
-        final_pdfs_ordered = []
-        if resized_covers:
-            final_pdfs_ordered.append(resized_covers[0])  # couverture début
-        final_pdfs_ordered.extend(pdf_sections)          # toutes sections
-        if len(resized_covers) > 1:
-            final_pdfs_ordered.append(resized_covers[1])  # couverture fin
+        # Optionnel : Page de fin
+        if len(resized) > 1:
+            pdf_sections.append(generer_pdf_section("Page de Fin", [Image(resized[1], width=469, height=716)]))
 
-        assembler_pdf(final_pdfs_ordered, final_pdf_path)
+        # Fusion finale des sections
+        assembler_pdf(pdf_sections, final_pdf_path)
         results_map[job_id] = final_pdf_path
         progress_map[job_id] = 100
         logging.info(f"✅ Rapport finalisé pour job {job_id}")
