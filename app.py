@@ -516,9 +516,12 @@ def generate_estimation_background(job_id, form_data):
 
         # Section 5 : Conclusion & Recommandations (prompt modifié)
         section_conclusion = generate_estimation_section(
-            f"Fournis uniquement des recommandations pratiques pour la vente du bien de {signature}. Concentre-toi sur des stratégies de mise en marché, le positionnement du prix et des conseils pour attirer les acheteurs. Ne donne pas d'estimation de prix ni d'analyse détaillée du marché.",
-            min_tokens=300
+            f"Fournis uniquement des recommandations pratiques et détaillées pour la vente du bien de {signature}. "
+            "Utilise des phrases complètes, claires et bien structurées, et ajoute de petits emojis pour souligner les points clés. "
+            "Ne donne pas d'estimation de prix ni d'analyse détaillée du marché.",
+        min_tokens=300
         )
+
         pdf_sections.append(generer_pdf_section("Conclusion & Recommandations", section_conclusion))
         progress_map[job_id] = 90
 
