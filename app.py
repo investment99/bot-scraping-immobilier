@@ -369,14 +369,25 @@ def encadre_info_cle(texte):
     return Paragraph(texte, style_encadre)
 
 # Génération individuelle des PDFs des sections
-def generer_pdf_section(titre, elements):
+def generer_pdf_section(titre, elements, is_cover=False):
     temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-    doc = SimpleDocTemplate(temp_pdf.name, pagesize=A4, topMargin=2*cm, bottomMargin=2*cm)
+
+    if is_cover:
+        doc = SimpleDocTemplate(temp_pdf.name, pagesize=A4,
+                                topMargin=0, bottomMargin=0,
+                                leftMargin=0, rightMargin=0)
+    else:
+        doc = SimpleDocTemplate(temp_pdf.name, pagesize=A4,
+                                topMargin=2*cm, bottomMargin=2*cm,
+                                leftMargin=2*cm, rightMargin=2*cm)
+
     story = []
-    add_section_title(story, titre)
+    if not is_cover:
+        add_section_title(story, titre)
     story.extend(elements)
     doc.build(story)
     return temp_pdf.name
+
 
 # Fusion finale de tous les PDFs individuels
 from PyPDF2 import PdfMerger
@@ -494,14 +505,13 @@ def generate_estimation_background(job_id, form_data):
         final_pdf_path = os.path.join(PDF_FOLDER, f"estimation_{name.replace(' ', '_')}_{job_id}.pdf")
 
         covers = ["static/cover_image.png", "static/cover_image1.png"]
-        resized_covers = []
         for img_path in covers:
             if os.path.exists(img_path):
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_cover_pdf:
-                    doc_cover = SimpleDocTemplate(tmp_cover_pdf.name, pagesize=A4)
-                    cover_story = [Image(img_path, width=A4[0], height=A4[1])]
-                    doc_cover.build(cover_story)
-                    resized_covers.append(tmp_cover_pdf.name)
+                img = Image(img_path, width=A4[0], height=A4[1])
+                img.hAlign = 'CENTER'
+                cover_pdf_path = generer_pdf_section("", [img], is_cover=True)
+                resized_covers.append(cover_pdf_path)
+
 
         pdf_sections = []
 
