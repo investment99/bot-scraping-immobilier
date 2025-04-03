@@ -416,7 +416,7 @@ def generate_estimation():
         # Section 2 : Introduction
         section_intro = generate_estimation_section(
             f"Rédige une introduction complète et professionnelle pour {form_data.get('civilite', '')} {form_data.get('prenom', '')} {form_data.get('nom', '')}, concernant l'estimation de son bien situé à {form_data.get('adresse')} ({form_data.get('code_postal')}). Ne termine pas par 'Cordialement, Expert immobilier'. Ce rapport repose uniquement sur les réponses du formulaire et les données DVF.",
-            min_tokens=300
+            min_tokens=400
         )
         elements.append(generer_pdf_section("Introduction", section_intro))
         progress_map[name] = 40
@@ -628,3 +628,4 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     logging.info(f"✅ Démarrage de l'API sur le port {port}")
     app.run(host="0.0.0.0", port=port)
+    
