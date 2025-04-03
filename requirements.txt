@@ -75,3 +75,4 @@ pydantic_core==2.27.2
 markdown
 markdown2==2.4.12
 webdriver-manager==4.0.1
+PyPDF2
