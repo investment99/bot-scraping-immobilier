@@ -429,7 +429,7 @@ def generate_estimation():
         """
 
         section_intro = [Paragraph(p.strip(), getSampleStyleSheet()["BodyText"]) for p in texte_intro_fixe.strip().split("\n") if p.strip()]
-        elements.append(generer_pdf_section("Introduction", section_intro))
+        pdf_sections.append(generer_pdf_section("Introduction", section_intro))
         progress_map[name] = 40
 
 
@@ -546,7 +546,7 @@ def generate_estimation_background(job_id, form_data):
         """
 
         section_intro = [Paragraph(p.strip(), getSampleStyleSheet()["BodyText"]) for p in texte_intro_fixe.strip().split("\n") if p.strip()]
-        elements.append(generer_pdf_section("Introduction", section_intro))
+        pdf_sections.append(generer_pdf_section("Introduction", section_intro))
         progress_map[name] = 40
 
 
