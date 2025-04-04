@@ -416,13 +416,22 @@ def generate_estimation():
         elements.append(generer_pdf_section("Résumé du Questionnaire", section_resume))
         progress_map[name] = 30
 
-        # Section 2 : Introduction
-        section_intro = generate_estimation_section(
-            f"Rédige une introduction complète et professionnelle pour {form_data.get('civilite', '')} {form_data.get('prenom', '')} {form_data.get('nom', '')}, concernant l'estimation de son bien situé à {form_data.get('adresse')} ({form_data.get('code_postal')}). Ne termine pas par 'Cordialement, Expert immobilier'. Ce rapport repose uniquement sur les réponses du formulaire et les données DVF.",
-            min_tokens=300
-        )
+        # Section 2 : Introduction (texte fixe)
+        texte_intro_fixe = """
+        Nous vous remercions sincèrement pour la confiance que vous nous accordez en nous confiant l’évaluation de votre bien.  
+        Nos experts immobiliers ont réalisé une analyse complète et personnalisée, fondée sur les informations que vous nous avez transmises, ainsi que sur une étude approfondie des données de ventes récentes dans votre secteur (données DVF). Ce rapport vise à vous offrir une estimation aussi précise que possible de la valeur actuelle de votre bien, en le comparant à des propriétés similaires récemment vendues, tout en intégrant une projection de l’évolution du marché à moyen et long terme.  
+
+        Nous espérons que ce document répondra pleinement à vos attentes et contribuera à éclairer vos réflexions et vos décisions.  
+        Nous restons bien entendu à votre disposition pour tout complément d'information.  
+
+        Nous vous souhaitons une excellente lecture.  
+        Bien à vous.
+        """
+
+        section_intro = [Paragraph(p.strip(), getSampleStyleSheet()["BodyText"]) for p in texte_intro_fixe.strip().split("\n") if p.strip()]
         elements.append(generer_pdf_section("Introduction", section_intro))
         progress_map[name] = 40
+
 
         # Section 3 : Analyse des Données DVF
         dvf_table_md = get_dvf_comparables(form_data)
@@ -524,14 +533,22 @@ def generate_estimation_background(job_id, form_data):
         pdf_sections.append(generer_pdf_section("Résumé du Questionnaire", section_resume))
         progress_map[job_id] = 30
 
-        # Section 2 : Introduction
-        section_intro = generate_estimation_section(
-            f"Rédige une introduction complète et professionnelle pour {signature}, concernant l'estimation de son bien situé à {form_data.get('adresse')} ({form_data.get('code_postal')}). "
-            "Ne termine pas par 'Cordialement, Expert immobilier'. Ce rapport repose uniquement sur les réponses du formulaire et les données DVF.",
-            min_tokens=300
-        )
-        pdf_sections.append(generer_pdf_section("Introduction", section_intro))
-        progress_map[job_id] = 40
+        # Section 2 : Introduction (texte fixe)
+        texte_intro_fixe = """
+        Nous vous remercions sincèrement pour la confiance que vous nous accordez en nous confiant l’évaluation de votre bien.  
+        Nos experts immobiliers ont réalisé une analyse complète et personnalisée, fondée sur les informations que vous nous avez transmises, ainsi que sur une étude approfondie des données de ventes récentes dans votre secteur (données DVF). Ce rapport vise à vous offrir une estimation aussi précise que possible de la valeur actuelle de votre bien, en le comparant à des propriétés similaires récemment vendues, tout en intégrant une projection de l’évolution du marché à moyen et long terme.  
+
+        Nous espérons que ce document répondra pleinement à vos attentes et contribuera à éclairer vos réflexions et vos décisions.  
+        Nous restons bien entendu à votre disposition pour tout complément d'information.  
+
+        Nous vous souhaitons une excellente lecture.  
+        Bien à vous.
+        """
+
+        section_intro = [Paragraph(p.strip(), getSampleStyleSheet()["BodyText"]) for p in texte_intro_fixe.strip().split("\n") if p.strip()]
+        elements.append(generer_pdf_section("Introduction", section_intro))
+        progress_map[name] = 40
+
 
         # Section 3 : Analyse des Données DVF
         dvf_table_md = get_dvf_comparables(form_data)
